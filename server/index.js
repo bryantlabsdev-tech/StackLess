@@ -43,38 +43,103 @@ function timestampToIso(timestamp) {
   return timestamp ? new Date(timestamp * 1000).toISOString() : null
 }
 
+function stripeId(value) {
+  if (!value) return null
+  return typeof value === 'string' ? value : value.id
+}
+
+async function getCustomerEmail(customerId) {
+  if (!customerId) return null
+
+  const customer = await stripe.customers.retrieve(customerId)
+  if (customer.deleted) return null
+  return customer.email ?? null
+}
+
 async function updateProfileSubscription({
+  eventType,
   userId,
   customerId,
   subscriptionId,
   status,
   trialEndsAt,
+  customerEmail,
 }) {
+  const resolvedCustomerId = stripeId(customerId)
+  const resolvedSubscriptionId = stripeId(subscriptionId)
   const update = {
-    stripe_customer_id: customerId,
-    stripe_subscription_id: subscriptionId,
+    stripe_customer_id: resolvedCustomerId,
+    stripe_subscription_id: resolvedSubscriptionId,
     subscription_status: status,
     trial_ends_at: trialEndsAt,
     is_active: subscriptionIsActive(status),
   }
 
-  let query = supabaseAdmin.from('profiles').update(update)
-  query = userId ? query.eq('id', userId) : query.eq('stripe_customer_id', customerId)
+  const email = customerEmail ?? (userId ? null : await getCustomerEmail(resolvedCustomerId))
+  console.log(`[stripe:webhook] user_id found: ${userId || 'missing'}`)
+  if (!userId && email) {
+    console.log(`[stripe:webhook] falling back to profiles.email lookup: ${email}`)
+  }
 
-  const { error } = await query
-  if (error) throw error
+  let query = supabaseAdmin.from('profiles').update(update).select('id, email')
+  if (userId) {
+    query = query.eq('id', userId)
+  } else if (email) {
+    query = query.ilike('email', email)
+  } else {
+    query = query.eq('stripe_customer_id', resolvedCustomerId)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    console.error(`[stripe:webhook] profile update failed for ${eventType}:`, error)
+    throw error
+  }
+
+  if (!data || data.length === 0) {
+    const message = `No profile found for user_id=${userId || 'missing'}, email=${email || 'missing'}, customer=${resolvedCustomerId || 'missing'}`
+    console.error(`[stripe:webhook] profile update failed for ${eventType}: ${message}`)
+    throw new Error(message)
+  }
+
+  console.log(
+    `[stripe:webhook] profile update success for ${eventType}: profile=${data[0].id}, status=${status}, is_active=${update.is_active}`,
+  )
 }
 
-async function updateFromSubscription(subscription) {
+async function updateFromSubscription(eventType, subscription, fallbackEmail = null) {
   const userId =
     typeof subscription.metadata?.user_id === 'string' ? subscription.metadata.user_id : undefined
 
   await updateProfileSubscription({
+    eventType,
     userId,
     customerId: subscription.customer,
     subscriptionId: subscription.id,
     status: subscription.status,
     trialEndsAt: timestampToIso(subscription.trial_end),
+    customerEmail: fallbackEmail,
+  })
+}
+
+async function updateFromInvoice(eventType, invoice, fallbackStatus) {
+  const subscriptionId = stripeId(
+    invoice.subscription ?? invoice.parent?.subscription_details?.subscription,
+  )
+  if (subscriptionId) {
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+    await updateFromSubscription(eventType, subscription, invoice.customer_email ?? null)
+    return
+  }
+
+  await updateProfileSubscription({
+    eventType,
+    userId: undefined,
+    customerId: invoice.customer,
+    subscriptionId: null,
+    status: fallbackStatus,
+    trialEndsAt: null,
+    customerEmail: invoice.customer_email ?? null,
   })
 }
 
@@ -96,25 +161,40 @@ app.post(
     }
 
     try {
+      console.log(`[stripe:webhook] received event: ${event.type}`)
+
       switch (event.type) {
         case 'checkout.session.completed': {
           const session = event.data.object
           if (session.mode !== 'subscription' || !session.subscription) break
 
-          const subscription = await stripe.subscriptions.retrieve(session.subscription)
+          const subscription = await stripe.subscriptions.retrieve(stripeId(session.subscription))
           await updateProfileSubscription({
-            userId: session.client_reference_id || session.metadata?.user_id,
+            eventType: event.type,
+            userId:
+              session.metadata?.user_id ||
+              subscription.metadata?.user_id ||
+              session.client_reference_id,
             customerId: session.customer,
             subscriptionId: subscription.id,
             status: subscription.status,
             trialEndsAt: timestampToIso(subscription.trial_end),
+            customerEmail: session.customer_details?.email ?? null,
           })
           break
         }
         case 'customer.subscription.created':
         case 'customer.subscription.updated':
         case 'customer.subscription.deleted': {
-          await updateFromSubscription(event.data.object)
+          await updateFromSubscription(event.type, event.data.object)
+          break
+        }
+        case 'invoice.paid': {
+          await updateFromInvoice(event.type, event.data.object, 'active')
+          break
+        }
+        case 'invoice.payment_failed': {
+          await updateFromInvoice(event.type, event.data.object, 'past_due')
           break
         }
         default:
@@ -213,6 +293,7 @@ app.post('/api/create-checkout-session', requireUser, async (req, res) => {
       cancel_url: appUrl('/billing?checkout=cancelled'),
     })
 
+    console.log(`[stripe:checkout] created session for user_id=${req.user.id}`)
     return res.json({ url: session.url })
   } catch (error) {
     console.error('Failed to create checkout session:', error)
