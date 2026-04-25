@@ -7,6 +7,7 @@ import { EmployeesPage } from '../pages/EmployeesPage'
 import { JobDetailPage } from '../pages/JobDetailPage'
 import { JobsPage } from '../pages/JobsPage'
 import { LoginPage } from '../pages/LoginPage'
+import { SettingsPage } from '../pages/SettingsPage'
 import { SignupPage } from '../pages/SignupPage'
 import { AdminLayout } from '../layouts/AdminLayout'
 import { CatchAllRedirect } from './redirects'
@@ -25,6 +26,7 @@ export function AppRoutes() {
         <Route path="/jobs/:jobId" element={<JobDetailPage />} />
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
 
       <Route path="/employee-dashboard" element={<Navigate to="/dashboard" replace />} />

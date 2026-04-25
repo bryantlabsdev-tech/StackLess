@@ -9,6 +9,8 @@ const NAV_LINK_END: Record<string, true> = {
   '/calendar': true,
   '/customers': true,
   '/employee-dashboard': true,
+  '/settings': true,
+  '/billing': true,
   '/my-schedule': true,
 }
 

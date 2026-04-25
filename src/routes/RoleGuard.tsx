@@ -21,7 +21,7 @@ export function RoleGuard({ allow, children }: Props) {
 
   if (!isReady) return <AuthLoading />
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />
-  if (location.pathname !== '/billing' && !hasSubscriptionAccess(user)) {
+  if (!['/billing', '/settings'].includes(location.pathname) && !hasSubscriptionAccess(user)) {
     return <Navigate to="/billing" replace />
   }
 

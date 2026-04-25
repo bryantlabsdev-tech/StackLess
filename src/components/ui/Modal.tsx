@@ -60,7 +60,7 @@ export function Modal({
             ✕
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">{children}</div>
+        <div className="scroll-momentum min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">{children}</div>
         {footer ? (
           <div className="sticky bottom-0 z-10 flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-[#1F2A36] dark:bg-[#11161D] sm:flex-row sm:justify-end sm:px-5 sm:py-4">
             {footer}

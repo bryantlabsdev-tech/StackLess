@@ -7,6 +7,8 @@ export const ADMIN_ROUTES = [
   '/employees',
   '/jobs',
   '/calendar',
+  '/settings',
+  '/billing',
 ] as const
 
 /** Routes only field crew may access. */

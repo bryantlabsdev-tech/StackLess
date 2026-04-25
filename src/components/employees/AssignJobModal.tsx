@@ -54,6 +54,7 @@ export function AssignJobModal({
   const [endTime, setEndTime] = useState('11:00')
   const [customerId, setCustomerId] = useState(() => customers[0]?.id ?? '')
 
+  /* eslint-disable react-hooks/set-state-in-effect -- keep form defaults aligned with changing customer data/open sessions */
   useEffect(() => {
     if (customers.length === 0) return
     if (!customers.some((c) => c.id === customerId)) {
@@ -64,6 +65,7 @@ export function AssignJobModal({
   useEffect(() => {
     if (open) setSessionTouchedJobIds(new Set())
   }, [open, employee.id])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const pool = useMemo(() => {
     return jobs.filter((j) => assignableJobStatuses(j))
@@ -174,7 +176,7 @@ export function AssignJobModal({
             aria-label="Filter jobs"
           />
 
-          <div className="mt-1 max-h-[min(52vh,22rem)] overflow-y-auto overscroll-y-contain scroll-smooth rounded-xl border border-slate-200/90 bg-slate-50/70 p-2 shadow-inner shadow-slate-900/[0.03] dark:border-slate-700 dark:bg-slate-950/50 dark:shadow-black/20">
+          <div className="scroll-momentum mt-1 max-h-[min(52vh,22rem)] overflow-y-auto overscroll-y-contain scroll-smooth rounded-xl border border-slate-200/90 bg-slate-50/70 p-2 shadow-inner shadow-slate-900/[0.03] dark:border-slate-700 dark:bg-slate-950/50 dark:shadow-black/20">
             {sortedExisting.length === 0 ? (
               <p className="px-4 py-10 text-center text-sm leading-relaxed text-slate-500 dark:text-gray-400">
                 No matching jobs. Try another search or create below.

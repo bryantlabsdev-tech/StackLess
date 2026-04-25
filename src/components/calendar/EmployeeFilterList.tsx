@@ -47,7 +47,7 @@ export function EmployeeFilterList({
         A job appears if <span className="font-semibold text-slate-700 dark:text-slate-300">any</span> of its crew
         is visible here. Multi-crew jobs show for everyone assigned. Unassigned work always stays visible.
       </p>
-      <ul className="mt-2.5 max-h-48 space-y-0.5 overflow-y-auto overscroll-contain pr-0.5">
+      <ul className="scroll-momentum mt-2.5 max-h-48 space-y-0.5 overflow-y-auto overscroll-contain pr-0.5">
         {active.map((e) => {
           const visible = !hiddenEmployeeIds.has(e.id)
           const c = colorForEmployeeId(e.id)

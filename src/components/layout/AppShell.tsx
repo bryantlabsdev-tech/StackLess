@@ -4,6 +4,7 @@ import {
   IconCalendar,
   IconClipboard,
   IconDashboard,
+  IconSettings,
   IconTeam,
   IconUsers,
 } from '../icons'
@@ -20,15 +21,21 @@ const adminNav = [
   { to: '/jobs', label: 'Jobs', description: 'Work orders', Icon: IconClipboard },
   { to: '/customers', label: 'Customers', description: 'Accounts', Icon: IconUsers },
   { to: '/employees', label: 'Team', description: 'Crew', Icon: IconTeam },
+  { to: '/settings', label: 'Settings', description: 'Account', Icon: IconSettings },
+] as const
+
+const limitedNav = [
+  { to: '/billing', label: 'Billing', description: 'Subscription', Icon: IconClipboard },
+  { to: '/settings', label: 'Settings', description: 'Account', Icon: IconSettings },
 ] as const
 
 export function AppShell({ variant }: { variant: 'admin' | 'employee' }) {
   void variant
   const navigate = useNavigate()
   const { user, logout, developmentBypass } = useAuth()
-  const nav = adminNav
   const [jobOpen, setJobOpen] = useState(false)
   const hasAccess = hasSubscriptionAccess(user)
+  const nav = hasAccess ? adminNav : limitedNav
 
   const handleLogout = async () => {
     await logout()
@@ -122,7 +129,7 @@ export function AppShell({ variant }: { variant: 'admin' | 'employee' }) {
         </div>
       </aside>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--page-bg)]">
+      <div className="flex min-w-0 flex-1 flex-col bg-[var(--page-bg)]">
         <header className="sticky top-0 z-40 flex min-h-14 flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 bg-white/90 px-3 py-2 backdrop-blur-xl dark:border-[#1F2A36] dark:bg-[#0B0F14]/88 md:hidden">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-blue-500 text-base shadow-lg shadow-blue-950/20">
@@ -162,7 +169,7 @@ export function AppShell({ variant }: { variant: 'admin' | 'employee' }) {
             + Add Job
           </Button>
         ) : null}
-        {hasAccess ? <MobileBottomNav items={nav} /> : null}
+        <MobileBottomNav items={nav} />
         <JobModal open={jobOpen} onClose={() => setJobOpen(false)} jobId={null} />
       </div>
     </div>

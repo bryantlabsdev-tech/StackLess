@@ -75,6 +75,25 @@ export function IconTeam(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function IconSettings(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={iconClass(props.className)} aria-hidden>
+      <path
+        d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+      />
+      <path
+        d="M19.43 14.98c.04-.32.07-.65.07-.98s-.02-.66-.07-.98l2.02-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.6-.22l-2.38.96a7.4 7.4 0 00-1.7-.98L14.6 4.7a.5.5 0 00-.5-.42h-3.84a.5.5 0 00-.5.42l-.36 2.54c-.6.24-1.17.57-1.7.98l-2.38-.96a.5.5 0 00-.6.22L2.8 10.8a.5.5 0 00.12.64l2.02 1.58a7.38 7.38 0 000 1.96l-2.02 1.58a.5.5 0 00-.12.64l1.92 3.32a.5.5 0 00.6.22l2.38-.96c.53.41 1.1.74 1.7.98l.36 2.54a.5.5 0 00.5.42h3.84a.5.5 0 00.5-.42l.36-2.54c.6-.24 1.17-.57 1.7-.98l2.38.96a.5.5 0 00.6-.22l1.92-3.32a.5.5 0 00-.12-.64l-2.02-1.58z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 export function IconChevronLeft(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={iconClass(props.className)} aria-hidden>

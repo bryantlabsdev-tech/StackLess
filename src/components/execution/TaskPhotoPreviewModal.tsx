@@ -104,7 +104,7 @@ export function TaskPhotoPreviewModal({
             </button>
           </div>
         </div>
-        <div className="min-h-0 overflow-y-auto overscroll-contain">
+        <div className="scroll-momentum min-h-0 overflow-y-auto overscroll-contain">
           <div className="flex justify-center bg-black/50 p-3 sm:p-6">
             <img
               key={taskPhotoRevisionKey(photo)}

@@ -66,7 +66,7 @@ export function UnassignedJobsPanel({
           {list.length}
         </span>
       </div>
-      <ul className="mt-2.5 flex max-h-44 flex-col gap-1.5 overflow-y-auto overscroll-contain pr-0.5">
+      <ul className="scroll-momentum mt-2.5 flex max-h-44 flex-col gap-1.5 overflow-y-auto overscroll-contain pr-0.5">
         {list.map((j) => (
           <li key={j.id}>
             <button

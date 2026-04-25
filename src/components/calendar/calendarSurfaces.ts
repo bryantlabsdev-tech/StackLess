@@ -55,7 +55,7 @@ export const cal = {
     'min-h-11 w-full rounded-[14px] border border-slate-200 bg-white px-2.5 text-base font-medium text-slate-900 shadow-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-500/15 dark:border-[#1F2A36] dark:bg-[#151B23] dark:text-slate-100 dark:focus:border-blue-400/80 sm:text-sm',
 
   gridFrame:
-    'overflow-x-auto rounded-[22px] border border-slate-200 bg-white shadow-lg shadow-slate-900/[0.05] ring-1 ring-slate-900/[0.03] dark:border-[#1F2A36] dark:bg-[#11161D] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04),0_8px_32px_-12px_rgba(0,0,0,0.55)] dark:ring-white/[0.04]',
+    'scroll-momentum overflow-x-auto rounded-[22px] border border-slate-200 bg-white shadow-lg shadow-slate-900/[0.05] ring-1 ring-slate-900/[0.03] dark:border-[#1F2A36] dark:bg-[#11161D] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04),0_8px_32px_-12px_rgba(0,0,0,0.55)] dark:ring-white/[0.04]',
 
   weekdayHeader:
     'grid grid-cols-7 border-b border-slate-200/85 bg-gradient-to-b from-slate-50 to-slate-50/90 text-center text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:border-slate-700 dark:from-slate-950 dark:to-slate-900 dark:text-slate-400',

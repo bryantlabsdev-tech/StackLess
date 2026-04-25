@@ -164,7 +164,7 @@ export function CalendarPage() {
 
         <div className="mt-5 flex flex-col-reverse gap-5 lg:mt-8 lg:flex-row lg:items-start lg:gap-8">
           <aside
-            className="w-full shrink-0 space-y-4 lg:sticky lg:top-5 lg:w-[292px] lg:max-h-[calc(100dvh-5rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1"
+            className="scroll-momentum w-full shrink-0 space-y-4 lg:sticky lg:top-5 lg:w-[292px] lg:max-h-[calc(100dvh-5rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1"
             aria-label="Schedule actions and filters"
           >
             <div className={cal.sidebarCtaWrap}>

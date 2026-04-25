@@ -126,7 +126,7 @@ function JobDetailsBody({
         </button>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-5">
+      <div className="scroll-momentum min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-5">
         <section className="space-y-2">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-gray-400">
             Customer
