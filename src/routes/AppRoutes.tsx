@@ -6,6 +6,7 @@ import { DashboardPage } from '../pages/DashboardPage'
 import { EmployeesPage } from '../pages/EmployeesPage'
 import { JobDetailPage } from '../pages/JobDetailPage'
 import { JobsPage } from '../pages/JobsPage'
+import { LandingPage } from '../pages/LandingPage'
 import { LoginPage } from '../pages/LoginPage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { SignupPage } from '../pages/SignupPage'
@@ -15,6 +16,7 @@ import { CatchAllRedirect } from './redirects'
 export function AppRoutes() {
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
 
@@ -34,7 +36,6 @@ export function AppRoutes() {
       <Route path="/my-jobs" element={<Navigate to="/dashboard" replace />} />
       <Route path="/my-schedule" element={<Navigate to="/dashboard" replace />} />
 
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<CatchAllRedirect />} />
     </Routes>
   )

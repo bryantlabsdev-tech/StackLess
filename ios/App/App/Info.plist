@@ -2,12 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CAPACITOR_DEBUG</key>
+	<key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>StackLess</string>
+	<string>StackLess</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -26,10 +26,10 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>StackLess lets crews take job photos for tasks, notes, and proof of work.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>StackLess lets crews choose existing photos to attach to job tasks and notes.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>StackLess may save edited job photos back to your photo library if you choose to export them.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>StackLess lets crews choose existing photos to attach to job tasks and notes.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
