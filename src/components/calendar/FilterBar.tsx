@@ -9,6 +9,8 @@ const STATUSES: (JobStatus | 'all')[] = [
   'scheduled',
   'in_progress',
   'completed',
+  'needs_verification',
+  'verified',
   'canceled',
 ]
 

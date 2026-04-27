@@ -6,14 +6,18 @@ import { PageContainer } from '../components/layout/PageContainer'
 import { PageHeader } from '../components/ui/PageHeader'
 import { EmptyState } from '../components/ui/EmptyState'
 import { JobStatusBadge } from '../components/ui/Badge'
+import { DirectPhotoCaptureButtons } from '../components/execution/DirectPhotoCaptureButtons'
+import { formatJobValue, optionalJobValue } from '../lib/jobValue'
 import { formatDisplayDate } from '../lib/format'
+
+const terminalStatuses = new Set(['completed', 'needs_verification', 'verified', 'canceled'])
 
 const secondaryLinkClass =
   'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-700'
 
 export function MyJobsPage() {
   const { user } = useAuth()
-  const { jobs } = useAppData()
+  const { jobs, jobTasks } = useAppData()
   const employeeId = user?.role === 'employee' ? user.employee_id : null
 
   const mine = useMemo(() => {
@@ -45,7 +49,11 @@ export function MyJobsPage() {
             detail="When dispatch assigns you to jobs, they’ll show up here. Use My schedule to see them on the calendar."
           />
         ) : (
-          mine.map((j) => (
+          mine.map((j) => {
+            const tasks = jobTasks.filter((task) => task.job_id === j.id)
+            const photoTask = tasks.find((task) => !task.is_completed) ?? tasks[0] ?? null
+            const value = optionalJobValue(j)
+            return (
             <article
               key={j.id}
               className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
@@ -65,9 +73,19 @@ export function MyJobsPage() {
                     {j.start_time}–{j.end_time}
                   </span>
                 </p>
+                <p className="mt-2 text-sm font-semibold text-slate-800 dark:text-gray-200">
+                  Job value: {value == null ? 'Not set' : formatJobValue(value)}
+                </p>
                 <p className="mt-2 text-[15px] leading-relaxed text-slate-600 dark:text-gray-400">{j.address}</p>
               </div>
               <div className="p-4 sm:p-5">
+                <DirectPhotoCaptureButtons
+                  jobId={j.id}
+                  taskId={photoTask?.id ?? null}
+                  disabled={terminalStatuses.has(j.status)}
+                  notePrefix={`${j.title} - ${photoTask?.title ?? 'Job photo'}`}
+                  className="mb-3"
+                />
                 <Link
                   to={`/my-jobs/${j.id}`}
                   className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-emerald-600 px-4 text-base font-semibold text-white shadow-md shadow-emerald-900/15 transition hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 dark:bg-emerald-600 dark:hover:bg-emerald-500 dark:shadow-emerald-950/40"
@@ -76,7 +94,8 @@ export function MyJobsPage() {
                 </Link>
               </div>
             </article>
-          ))
+            )
+          })
         )}
       </div>
     </PageContainer>

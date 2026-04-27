@@ -11,26 +11,13 @@ import { Select } from '../components/ui/Select'
 import { JobStatusBadge } from '../components/ui/Badge'
 import { CrewAssignmentInline } from '../components/ui/CrewFacepile'
 import { jobMatchesEmployeeFilter } from '../lib/jobAssignees'
+import { formatJobValue, optionalJobValue } from '../lib/jobValue'
 import { formatDisplayDate } from '../lib/format'
-import type { Job, JobStatus } from '../types'
+import type { JobStatus } from '../types'
 import { JOB_STATUS_LABELS } from '../types'
 
 const secondaryLinkClass =
   'inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:-translate-y-px hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 dark:border-[#1F2A36] dark:bg-[#151B23] dark:text-slate-100 dark:hover:bg-[#1A2230] sm:flex-none'
-
-function optionalJobValue(job: Job): number | null {
-  const row = job as Job & { value?: unknown; price?: unknown; amount?: unknown }
-  const raw = row.value ?? row.price ?? row.amount
-  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null
-}
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(value)
-}
 
 export function JobsPage() {
   const { jobs, employees } = useAppData()
@@ -212,7 +199,7 @@ export function JobsPage() {
                     </div>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Value</p>
-                      <p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{value == null ? 'Not set' : formatMoney(value)}</p>
+                      <p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{value == null ? 'Not set' : formatJobValue(value)}</p>
                     </div>
                   </div>
 

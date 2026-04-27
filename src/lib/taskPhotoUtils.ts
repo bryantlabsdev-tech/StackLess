@@ -9,8 +9,10 @@ export function normalizeTaskPhoto(raw: unknown): TaskPhoto {
     id: String(p.id ?? ''),
     task_id: String(p.task_id ?? ''),
     image_url: String(p.image_url ?? ''),
+    storage_path: typeof p.storage_path === 'string' ? p.storage_path : null,
     label,
     note: typeof p.note === 'string' ? p.note : '',
+    uploaded_by_id: typeof p.uploaded_by_id === 'string' ? p.uploaded_by_id : null,
     uploaded_by: typeof p.uploaded_by === 'string' ? p.uploaded_by : '',
     created_at: typeof p.created_at === 'string' ? p.created_at : new Date().toISOString(),
     updated_at:

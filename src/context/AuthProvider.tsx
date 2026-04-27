@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { AUTH_DEVELOPMENT_BYPASS } from '../auth/config'
 import {
+  acceptEmployeeInvite,
+  fetchOrganizationSubscriptionAccess,
   getProfile,
   signIn,
   signOut,
@@ -14,6 +16,7 @@ import type { Profile } from '../types/profile'
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Profile | null>(null)
   const [isReady, setIsReady] = useState(false)
+  const [workspaceSubscriptionAccess, setWorkspaceSubscriptionAccess] = useState<boolean | null>(null)
 
   useEffect(() => {
     let active = true
@@ -69,14 +72,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function resolveOrgSubscription() {
+      if (!user) {
+        setWorkspaceSubscriptionAccess(null)
+        return
+      }
+      if (user.auth_mode === 'development') {
+        setWorkspaceSubscriptionAccess(true)
+        return
+      }
+      if (!user.organization_id) {
+        setWorkspaceSubscriptionAccess(false)
+        return
+      }
+
+      setWorkspaceSubscriptionAccess(null)
+      try {
+        const ok = await fetchOrganizationSubscriptionAccess(user.organization_id)
+        if (!cancelled) setWorkspaceSubscriptionAccess(ok)
+      } catch (error) {
+        console.error('Failed to resolve organization subscription', error)
+        if (!cancelled) setWorkspaceSubscriptionAccess(false)
+      }
+    }
+
+    void resolveOrgSubscription()
+    return () => {
+      cancelled = true
+    }
+  }, [user])
+
   const login = useCallback(async (email: string, password: string) => {
     const { profile } = await signIn(email, password)
     setUser(profile)
     return profile
   }, [])
 
-  const signup = useCallback(async (email: string, password: string): Promise<AuthResult> => {
-    const result = await signUp(email, password)
+  const signup = useCallback(async (email: string, password: string, inviteToken?: string): Promise<AuthResult> => {
+    const result = await signUp(email, password, inviteToken)
     if (result.session && result.profile) setUser(result.profile)
     return result
   }, [])
@@ -94,6 +130,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return profile
   }, [])
 
+  const acceptInvite = useCallback(async (inviteToken: string) => {
+    const profile = await acceptEmployeeInvite(inviteToken)
+    setUser(profile)
+    return profile
+  }, [])
+
   const logout = useCallback(async () => {
     await signOut()
     setUser(null)
@@ -103,15 +145,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       isReady,
+      workspaceSubscriptionAccess,
       developmentBypass: AUTH_DEVELOPMENT_BYPASS,
       developmentPersona: undefined,
       setDevelopmentPersona: undefined,
       login,
       signup,
+      acceptInvite,
       refreshProfile,
       logout,
     }),
-    [user, isReady, login, signup, refreshProfile, logout],
+    [user, isReady, workspaceSubscriptionAccess, login, signup, acceptInvite, refreshProfile, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

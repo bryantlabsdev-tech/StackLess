@@ -3,6 +3,8 @@ export type JobStatus =
   | 'scheduled'
   | 'in_progress'
   | 'completed'
+  | 'needs_verification'
+  | 'verified'
   | 'canceled'
 
 export interface Customer {
@@ -21,6 +23,8 @@ export interface Job {
   customer_name: string
   service_type: string
   address: string
+  /** Optional estimated or actual job value in dollars. */
+  job_value: number | null
   /** ISO date YYYY-MM-DD */
   date: string
   start_time: string
@@ -29,12 +33,16 @@ export interface Job {
   assignees: string[]
   status: JobStatus
   notes: string
+  /** Require before/after proof photos before work can be submitted complete. */
+  requires_photos: boolean
   /** Closing checklist — all must be checked before job can be marked complete. */
   checklist: import('./jobExecution').JobChecklistItem[]
   /** Field clock-in — maps to “start time” for work performed (ISO 8601). */
   work_started_at: string | null
   /** Field clock-out — maps to “end time” for work performed (ISO 8601). */
   work_completed_at: string | null
+  /** Admin feedback when a submitted job is sent back for crew rework. */
+  verification_feedback: string
 }
 
 export type { JobChecklistItem, JobTask, TaskPhoto } from './jobExecution'
@@ -51,6 +59,7 @@ export interface Employee {
   id: string
   full_name: string
   phone: string
+  email: string
   role: string
   availability: string
   status: EmployeeAccountStatus
@@ -59,12 +68,15 @@ export interface Employee {
 
 export type { Profile, ProfileStatus, UserRole } from './profile'
 export type { EmployeeDaySchedule, EmployeeDayScheduleStatus } from './employeeSchedule'
+export type { EmployeeInvite, EmployeeInviteStatus } from './employeeInvite'
 
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
-  unassigned: 'Unassigned',
-  scheduled: 'Scheduled',
+  unassigned: 'New',
+  scheduled: 'Assigned',
   in_progress: 'In progress',
   completed: 'Completed',
+  needs_verification: 'Needs verification',
+  verified: 'Verified',
   canceled: 'Canceled',
 }
 

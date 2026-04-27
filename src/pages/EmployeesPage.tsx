@@ -22,7 +22,7 @@ import {
 } from '../lib/employeeTodayOverview'
 import { formatISODate } from '../lib/format'
 import { initialsFromName } from '../lib/initials'
-import type { Employee, EmployeeAccountStatus } from '../types'
+import type { Employee, EmployeeAccountStatus, EmployeeInvite } from '../types'
 
 const linkGhost =
   'inline-flex min-h-[40px] flex-1 items-center justify-center rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:shadow dark:border-slate-600 dark:bg-slate-800 dark:text-gray-200 dark:hover:border-slate-500 dark:hover:bg-slate-700 sm:flex-none sm:min-w-[7.5rem]'
@@ -185,11 +185,20 @@ function jobCountLine(o: EmployeeTodayOverview): string {
 type Row = { employee: Employee; overview: EmployeeTodayOverview }
 
 export function EmployeesPage() {
-  const { employees, jobs, employeeDaySchedules, addEmployee, updateEmployee } = useAppData()
+  const {
+    employees,
+    employeeInvites,
+    jobs,
+    employeeDaySchedules,
+    addEmployee,
+    updateEmployee,
+    createEmployeeInvite,
+  } = useAppData()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Employee | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
   const [assignEmployee, setAssignEmployee] = useState<Employee | null>(null)
+  const [inviteEmployee, setInviteEmployee] = useState<Employee | null>(null)
 
   const todayIso = useMemo(() => formatISODate(new Date()), [])
 
@@ -235,6 +244,14 @@ export function EmployeesPage() {
     const cap = getCapacityLevel(overview)
     const preview = overview.jobsToday.slice(0, 3)
     const more = overview.jobCount > 3 ? overview.jobCount - 3 : 0
+    const latestInvite = employeeInvites
+      .filter((invite) => invite.employee_id === e.id)
+      .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0]
+    const inviteStatus = latestInvite?.status === 'accepted'
+      ? 'Account linked'
+      : latestInvite?.status === 'pending'
+        ? 'Invite pending'
+        : 'No account invite'
 
     return (
       <div
@@ -305,8 +322,16 @@ export function EmployeesPage() {
                 <dd className="text-right text-slate-800 dark:text-gray-200">{e.phone || '—'}</dd>
               </div>
               <div className="flex justify-between gap-4">
+                <dt className="text-slate-500 dark:text-gray-400">Email</dt>
+                <dd className="text-right text-slate-800 dark:text-gray-200">{e.email || '—'}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
                 <dt className="text-slate-500 dark:text-gray-400">Availability</dt>
                 <dd className="text-right text-slate-800 dark:text-gray-200">{e.availability || '—'}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500 dark:text-gray-400">Crew account</dt>
+                <dd className="text-right text-slate-800 dark:text-gray-200">{inviteStatus}</dd>
               </div>
             </dl>
             {e.notes ? (
@@ -338,6 +363,13 @@ export function EmployeesPage() {
           </Link>
           <Button variant="secondary" className="min-h-[42px] flex-1 sm:flex-none" onClick={() => startEdit(e)}>
             Edit
+          </Button>
+          <Button
+            variant="secondary"
+            className="min-h-[42px] flex-1 sm:flex-none"
+            onClick={() => setInviteEmployee(e)}
+          >
+            Invite
           </Button>
         </div>
       </div>
@@ -458,7 +490,154 @@ export function EmployeesPage() {
           }}
         />
       ) : null}
+
+      {inviteEmployee ? (
+        <EmployeeInviteModal
+          employee={inviteEmployee}
+          latestInvite={
+            employeeInvites
+              .filter((invite) => invite.employee_id === inviteEmployee.id)
+              .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0] ?? null
+          }
+          onCreateInvite={createEmployeeInvite}
+          onClose={() => setInviteEmployee(null)}
+        />
+      ) : null}
     </PageContainer>
+  )
+}
+
+function inviteLinkFor(token: string) {
+  return `${window.location.origin}${window.location.pathname}#/signup?invite=${encodeURIComponent(token)}`
+}
+
+function EmployeeInviteModal({
+  employee,
+  latestInvite,
+  onCreateInvite,
+  onClose,
+}: {
+  employee: Employee
+  latestInvite: EmployeeInvite | null
+  onCreateInvite: (
+    employeeId: string,
+    input: { contact_email?: string; contact_phone?: string },
+  ) => Promise<EmployeeInvite>
+  onClose: () => void
+}) {
+  const [email, setEmail] = useState(employee.email)
+  const [phone, setPhone] = useState(employee.phone)
+  const [invite, setInvite] = useState<EmployeeInvite | null>(latestInvite)
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const inviteLink = invite ? inviteLinkFor(invite.token) : null
+  const canCreate = email.trim() !== '' || phone.trim() !== ''
+
+  async function createInvite() {
+    if (!canCreate) {
+      setError('Add an email or phone number before generating an invite.')
+      return
+    }
+    setError(null)
+    setCopied(false)
+    setSubmitting(true)
+    try {
+      const created = await onCreateInvite(employee.id, {
+        contact_email: email,
+        contact_phone: phone,
+      })
+      setInvite(created)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create invite.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function copyInviteLink() {
+    if (!inviteLink) return
+    await navigator.clipboard.writeText(inviteLink)
+    setCopied(true)
+  }
+
+  return (
+    <Modal
+      open
+      title={`Invite ${employee.full_name}`}
+      description="Generate a crew signup link that connects this person to their employee record."
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+          <Button onClick={createInvite} disabled={submitting}>
+            {submitting ? 'Generating…' : 'Generate invite link'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Invite email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="crew@example.com"
+          />
+          <Input
+            label="Invite phone"
+            type="tel"
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+            placeholder="(555) 123-4567"
+          />
+        </div>
+
+        {error ? (
+          <p className="rounded-[14px] border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+            {error}
+          </p>
+        ) : null}
+
+        {invite ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/60">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {invite.status === 'accepted' ? 'Invite accepted' : 'Invite link ready'}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-gray-400">
+                  Send this link by email, text message, or any crew chat.
+                </p>
+              </div>
+              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-slate-600 dark:border-slate-600 dark:bg-slate-900 dark:text-gray-300">
+                {invite.status}
+              </span>
+            </div>
+            {inviteLink ? (
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input
+                  className="min-h-11 flex-1 rounded-[14px] border border-slate-200 bg-white px-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-gray-200"
+                  value={inviteLink}
+                  readOnly
+                />
+                <Button variant="secondary" onClick={copyInviteLink}>
+                  {copied ? 'Copied' : 'Copy link'}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-gray-300">
+            No invite has been generated for this employee yet.
+          </p>
+        )}
+      </div>
+    </Modal>
   )
 }
 
@@ -476,6 +655,7 @@ function EmployeeModal({
       ? {
           full_name: initial.full_name,
           phone: initial.phone,
+          email: initial.email,
           role: initial.role,
           availability: initial.availability,
           status: initial.status,
@@ -484,6 +664,7 @@ function EmployeeModal({
       : {
           full_name: '',
           phone: '',
+          email: '',
           role: 'Technician',
           availability: '',
           status: 'active',
@@ -530,6 +711,12 @@ function EmployeeModal({
           label="Phone"
           value={values.phone}
           onChange={(e) => set({ phone: e.target.value })}
+        />
+        <Input
+          label="Email"
+          type="email"
+          value={values.email}
+          onChange={(e) => set({ email: e.target.value })}
         />
         <Input
           label="Role"

@@ -6,11 +6,12 @@ export function useDashboardStats() {
   const { customers, jobs } = useAppData()
   return useMemo(() => {
     const today = formatISODate(new Date())
+    const closedStatuses = new Set(['completed', 'verified', 'canceled'])
     const jobsToday = jobs.filter((j) => j.date === today).length
-    const openJobs = jobs.filter((j) => j.status !== 'completed' && j.status !== 'canceled').length
+    const openJobs = jobs.filter((j) => !closedStatuses.has(j.status)).length
     const unassignedJobs = jobs.filter(
       (j) =>
-        j.assignees.length === 0 && j.status !== 'completed' && j.status !== 'canceled',
+        j.assignees.length === 0 && !closedStatuses.has(j.status),
     ).length
     return {
       totalCustomers: customers.length,

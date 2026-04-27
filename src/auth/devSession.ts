@@ -9,6 +9,7 @@ export function buildMockAdminProfile(): Profile {
     role: 'admin',
     status: 'active',
     created_at: new Date().toISOString(),
+    organization_id: 'dev-organization',
     employee_id: null,
     auth_mode: 'development',
   }

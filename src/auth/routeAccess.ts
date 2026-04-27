@@ -6,6 +6,7 @@ export const ADMIN_ROUTES = [
   '/customers',
   '/employees',
   '/jobs',
+  '/verification',
   '/calendar',
   '/settings',
   '/billing',
@@ -14,9 +15,8 @@ export const ADMIN_ROUTES = [
 /** Routes only field crew may access. */
 export const EMPLOYEE_ROUTES = ['/employee-dashboard', '/my-jobs', '/my-schedule'] as const
 
-export function homePathForRole(_role: UserRole): string {
-  void _role
-  return '/dashboard'
+export function homePathForRole(role: UserRole): string {
+  return role === 'admin' ? '/dashboard' : '/employee-dashboard'
 }
 
 /** Whether a path belongs to the role’s app area (exact or nested). */
@@ -36,5 +36,5 @@ export function safePostLoginPath(
   if (!pathname || pathname === '/' || pathname === '/login' || pathname === '/signup') {
     return homePathForRole(role)
   }
-  return pathname
+  return isPathAllowedForRole(pathname, role) ? pathname : homePathForRole(role)
 }

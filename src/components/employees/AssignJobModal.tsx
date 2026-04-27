@@ -16,7 +16,12 @@ import {
 import type { Employee, Job } from '../../types'
 
 function assignableJobStatuses(job: Job): boolean {
-  return job.status !== 'completed' && job.status !== 'canceled'
+  return (
+    job.status !== 'completed' &&
+    job.status !== 'needs_verification' &&
+    job.status !== 'verified' &&
+    job.status !== 'canceled'
+  )
 }
 
 function formatJobListDate(iso: string): { weekday: string; monthDay: string } {
@@ -102,35 +107,45 @@ export function AssignJobModal({
   }
 
   const handleAddToCrew = (job: Job) => {
-    updateJob(job.id, addAssigneeToJobPatch(job, employee.id))
-    pinJobForSession(job.id)
+    void (async () => {
+      await updateJob(job.id, addAssigneeToJobPatch(job, employee.id))
+      pinJobForSession(job.id)
+    })()
   }
 
   const handleRemoveFromCrew = (job: Job) => {
     if (!job.assignees.includes(employee.id)) return
-    updateJob(job.id, removeAssigneeFromJobPatch(job, employee.id))
-    pinJobForSession(job.id)
+    void (async () => {
+      await updateJob(job.id, removeAssigneeFromJobPatch(job, employee.id))
+      pinJobForSession(job.id)
+    })()
   }
 
   const handleQuickCreate = () => {
-    const t = title.trim()
-    if (!t || customers.length === 0) return
-    const c = customers.find((x) => x.id === customerId)
-    if (!c) return
-    const base = buildNewJob(customers, date)
-    addJob({
-      ...base,
-      title: t,
-      customer_id: c.id,
-      customer_name: c.full_name,
-      address: c.address ?? '',
-      date,
-      start_time: startTime,
-      end_time: endTime,
-      assignees: [employee.id],
-      status: 'scheduled',
-    })
-    onClose()
+    void (async () => {
+      const t = title.trim()
+      if (!t || customers.length === 0) return
+      const c = customers.find((x) => x.id === customerId)
+      if (!c) return
+      const base = buildNewJob(customers, date)
+      try {
+        await addJob({
+          ...base,
+          title: t,
+          customer_id: c.id,
+          customer_name: c.full_name,
+          address: c.address ?? '',
+          date,
+          start_time: startTime,
+          end_time: endTime,
+          assignees: [employee.id],
+          status: 'scheduled',
+        })
+        onClose()
+      } catch {
+        /* addJob already refreshed workspace */
+      }
+    })()
   }
 
   return (

@@ -3,11 +3,11 @@ import { useSearchParams } from 'react-router-dom'
 import { PageContainer } from '../components/layout/PageContainer'
 import { Button } from '../components/ui/Button'
 import { createCheckoutSession, createPortalSession } from '../lib/billing'
-import { formatTrialEnd, hasSubscriptionAccess } from '../lib/subscription'
+import { formatTrialEnd } from '../lib/subscription'
 import { useAuth } from '../hooks/useAuth'
 
 export function BillingPage() {
-  const { user, refreshProfile } = useAuth()
+  const { user, refreshProfile, workspaceSubscriptionAccess } = useAuth()
   const [searchParams] = useSearchParams()
   const [loadingAction, setLoadingAction] = useState<'checkout' | 'portal' | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -47,7 +47,7 @@ export function BillingPage() {
     }
   }
 
-  const hasAccess = hasSubscriptionAccess(user)
+  const hasAccess = workspaceSubscriptionAccess === true
   const trialEnd = formatTrialEnd(user)
   const statusMessage =
     message ??

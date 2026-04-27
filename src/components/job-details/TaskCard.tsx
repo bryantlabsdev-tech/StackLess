@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import type { JobTask, TaskPhoto } from '../../types'
-import { PhotoUploadButton } from './PhotoUploadButton'
+import { DirectPhotoCaptureButtons } from '../execution/DirectPhotoCaptureButtons'
 import { TaskPhotoGrid } from './TaskPhotoGrid'
 
 export function TaskCard({
@@ -11,7 +11,6 @@ export function TaskCard({
   onToggleDone,
   photoNote,
   onPhotoNoteChange,
-  onRequestPhotoUpload,
   onPhotoClick,
   onEditPhoto,
   disabled,
@@ -23,7 +22,6 @@ export function TaskCard({
   onToggleDone: (done: boolean) => void
   photoNote: string
   onPhotoNoteChange: (value: string) => void
-  onRequestPhotoUpload: () => void
   onPhotoClick: (p: TaskPhoto) => void
   onEditPhoto?: (p: TaskPhoto) => void
   disabled?: boolean
@@ -101,7 +99,7 @@ export function TaskCard({
               </div>
               {photos.length === 0 ? (
                 <p className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/90 px-4 py-6 text-center text-[15px] text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-gray-400">
-                  No photos yet — add one below after you’re on site.
+                  No photos yet
                 </p>
               ) : null}
             </div>
@@ -139,7 +137,12 @@ export function TaskCard({
               />
             </div>
 
-            <PhotoUploadButton onClick={onRequestPhotoUpload} disabled={disabled} />
+            <DirectPhotoCaptureButtons
+              jobId={task.job_id}
+              taskId={task.id}
+              disabled={disabled}
+              notePrefix={photoNote.trim() || task.title}
+            />
           </div>
         </div>
       </div>

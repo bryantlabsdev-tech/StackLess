@@ -3,9 +3,12 @@ import { useAuth } from '../../hooks/useAuth'
 import { useAppData } from '../../hooks/useAppData'
 import { canMarkJobComplete } from '../../lib/jobCompletion'
 import type { Job } from '../../types'
+import { Button } from '../ui/Button'
 import { ActionBar } from './ActionBar'
 import { ChecklistSection } from './ChecklistSection'
 import { JobHeader } from './JobHeader'
+import { JobPhotosSection } from './JobPhotosSection'
+import { JobTimelineSection } from './JobTimelineSection'
 import { TaskList } from './TaskList'
 import { TimeTracker } from './TimeTracker'
 
@@ -23,6 +26,7 @@ export function JobDetailsScreen({
 }) {
   const {
     jobTasks,
+    taskPhotos,
     updateChecklistItem,
     addChecklistItem,
     updateChecklistItemTitle,
@@ -30,9 +34,11 @@ export function JobDetailsScreen({
     startWork,
     undoStartWork,
     completeWork,
+    verifyJob,
   } = useAppData()
   const { user } = useAuth()
   const [completeError, setCompleteError] = useState<string | null>(null)
+  const [verifyError, setVerifyError] = useState<string | null>(null)
 
   const tasks = useMemo(
     () => jobTasks.filter((t) => t.job_id === job.id),
@@ -40,8 +46,14 @@ export function JobDetailsScreen({
   )
 
   const completionPreview = useMemo(
-    () => canMarkJobComplete(job.checklist, tasks),
-    [job.checklist, tasks],
+    () => {
+      const taskIds = new Set(tasks.map((task) => task.id))
+      const photos = taskPhotos.filter((photo) => taskIds.has(photo.task_id))
+      return canMarkJobComplete(job.checklist, tasks, photos, {
+        requiresPhotos: job.requires_photos,
+      })
+    },
+    [job.checklist, job.requires_photos, taskPhotos, tasks],
   )
 
   const canControl =
@@ -51,23 +63,47 @@ export function JobDetailsScreen({
       job.assignees.includes(user.employee_id))
 
   const checklistDisabled =
-    job.status === 'completed' || job.status === 'canceled' || !canControl
+    job.status === 'completed' ||
+    job.status === 'needs_verification' ||
+    job.status === 'verified' ||
+    job.status === 'canceled' ||
+    !canControl
 
   const canManageChecklistStructure =
     user?.role === 'admin' &&
     job.status !== 'completed' &&
+    job.status !== 'needs_verification' &&
+    job.status !== 'verified' &&
     job.status !== 'canceled'
 
   const taskInteractionLocked =
-    job.status === 'completed' || job.status === 'canceled' || !canControl
+    job.status === 'completed' ||
+    job.status === 'needs_verification' ||
+    job.status === 'verified' ||
+    job.status === 'canceled' ||
+    !canControl
+
+  const canManageJobPhotos = user?.role === 'admin'
+  const canInteractWithTasks = !taskInteractionLocked && canControl
+  const canVerifyJob = user?.role === 'admin' && job.status === 'needs_verification'
 
   const hint =
     !job.work_completed_at && !completionPreview.ok ? completionPreview.reason ?? null : null
 
   const handleComplete = () => {
-    setCompleteError(null)
-    const r = completeWork(job.id)
-    if (!r.ok) setCompleteError(r.reason ?? 'Cannot complete yet.')
+    void (async () => {
+      setCompleteError(null)
+      const r = await completeWork(job.id)
+      if (!r.ok) setCompleteError(r.reason ?? 'Cannot complete yet.')
+    })()
+  }
+
+  const handleVerify = () => {
+    void (async () => {
+      setVerifyError(null)
+      const r = await verifyJob(job.id)
+      if (!r.ok) setVerifyError(r.reason ?? 'Cannot verify this job yet.')
+    })()
   }
 
   const shell =
@@ -104,20 +140,54 @@ export function JobDetailsScreen({
         </section>
       ) : null}
 
+      {job.verification_feedback.trim() ? (
+        <section className="rounded-2xl border border-red-200 bg-red-50/90 p-4 shadow-sm dark:border-red-900/50 dark:bg-red-950/35 sm:p-5">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-red-900/75 dark:text-red-200/85">
+            Verification feedback
+          </h2>
+          <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-red-950 dark:text-red-50">
+            {job.verification_feedback}
+          </p>
+        </section>
+      ) : null}
+
       <ActionBar
         job={job}
         canControl={canControl}
         onStart={() => {
           setCompleteError(null)
-          startWork(job.id)
+          void startWork(job.id)
         }}
         onComplete={handleComplete}
         onUndoStart={() => {
           setCompleteError(null)
-          undoStartWork(job.id)
+          void undoStartWork(job.id)
         }}
         blockCompleteReason={completeError ?? hint}
       />
+
+      {canVerifyJob ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/35 sm:p-5">
+          <h2 className="text-xl font-bold tracking-tight text-amber-950 dark:text-amber-100">
+            Admin verification
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-amber-900/85 dark:text-amber-200/85">
+            Review the job notes, checklist, task progress, and photos below. Approving this job marks it as verified.
+          </p>
+          {verifyError ? (
+            <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100">
+              {verifyError}
+            </p>
+          ) : null}
+          <Button type="button" className="mt-4 min-h-[48px] rounded-2xl font-semibold" onClick={handleVerify}>
+            Approve and verify job
+          </Button>
+        </section>
+      ) : null}
+
+      <JobPhotosSection job={job} canManage={canManageJobPhotos} />
+
+      <JobTimelineSection job={job} />
 
       <section>
         <h2 className="px-0.5 text-xl font-bold tracking-tight text-gray-900 dark:text-white">Tasks</h2>
@@ -125,7 +195,11 @@ export function JobDetailsScreen({
           Work through these in order. Expand a task for photos and full instructions.
         </p>
         <div className="mt-5">
-          <TaskList job={job} showAddTask={showAddTask} canEdit={!taskInteractionLocked} />
+          <TaskList
+            job={job}
+            showAddTask={showAddTask}
+            canEdit={canInteractWithTasks}
+          />
         </div>
       </section>
 
@@ -137,19 +211,19 @@ export function JobDetailsScreen({
         canManageStructure={canManageChecklistStructure}
         onToggle={(itemId, is_completed) => {
           setCompleteError(null)
-          updateChecklistItem(job.id, itemId, is_completed)
+          void updateChecklistItem(job.id, itemId, is_completed)
         }}
         onAddItem={(title) => {
           setCompleteError(null)
-          addChecklistItem(job.id, title)
+          void addChecklistItem(job.id, title)
         }}
         onUpdateTitle={(itemId, title) => {
           setCompleteError(null)
-          updateChecklistItemTitle(job.id, itemId, title)
+          void updateChecklistItemTitle(job.id, itemId, title)
         }}
         onDeleteItem={(itemId) => {
           setCompleteError(null)
-          deleteChecklistItem(job.id, itemId)
+          void deleteChecklistItem(job.id, itemId)
         }}
       />
     </div>

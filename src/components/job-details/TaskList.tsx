@@ -1,6 +1,12 @@
 import { useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAppData } from '../../hooks/useAppData'
+import {
+  deleteStoredJobPhoto,
+  isDataUrl,
+  uploadJobPhotoFromDataUrl,
+} from '../../lib/jobPhotoStorage'
+import { canManageTaskPhoto, canViewTaskPhoto } from '../../lib/photoAccess'
 import type { Job, TaskPhoto } from '../../types'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -22,12 +28,10 @@ export function TaskList({
     taskPhotos,
     updateJobTask,
     addJobTask,
-    addTaskPhoto,
     updateTaskPhoto,
     deleteTaskPhoto,
   } = useAppData()
   const { user } = useAuth()
-  const uploadedBy = user?.full_name?.trim() || 'StackLess user'
 
   const tasks = useMemo(
     () => jobTasks.filter((t) => t.job_id === job.id),
@@ -39,11 +43,12 @@ export function TaskList({
   const photosByTask = useMemo(() => {
     const m = new Map<string, TaskPhoto[]>()
     for (const p of taskPhotos) {
+      if (!canViewTaskPhoto(p, user)) continue
       if (!m.has(p.task_id)) m.set(p.task_id, [])
       m.get(p.task_id)!.push(p)
     }
     return m
-  }, [taskPhotos])
+  }, [taskPhotos, user])
 
   const [expandedId, setExpandedId] = useState<string | null>(() => tasks[0]?.id ?? null)
   const activeExpandedId = useMemo(() => {
@@ -54,9 +59,7 @@ export function TaskList({
   const [photoNotes, setPhotoNotes] = useState<Record<string, string>>({})
   const uploadSessionSeq = useRef(0)
   const [uploadSession, setUploadSession] = useState<
-    | { kind: 'create'; taskId: string; key: number }
-    | { kind: 'edit'; photo: TaskPhoto; key: number }
-    | null
+    { kind: 'edit'; photo: TaskPhoto; key: number } | null
   >(null)
   const [preview, setPreview] = useState<TaskPhoto | null>(null)
 
@@ -67,12 +70,8 @@ export function TaskList({
     setExpandedId((cur) => (cur === id ? null : id))
   }
 
-  const openUpload = (taskId: string) => {
-    uploadSessionSeq.current += 1
-    setUploadSession({ kind: 'create', taskId, key: uploadSessionSeq.current })
-  }
-
   const openEditPhoto = (photo: TaskPhoto) => {
+    if (!canEdit || !canManageTaskPhoto(photo, user)) return
     uploadSessionSeq.current += 1
     setUploadSession({ kind: 'edit', photo, key: uploadSessionSeq.current })
   }
@@ -84,11 +83,19 @@ export function TaskList({
   }
 
   const addTask = () => {
-    if (!newTitle.trim()) return
-    const row = addJobTask(job.id, { title: newTitle.trim(), description: newDesc })
-    setNewTitle('')
-    setNewDesc('')
-    setExpandedId(row.id)
+    void (async () => {
+      if (!newTitle.trim()) return
+      const row = await addJobTask(job.id, { title: newTitle.trim(), description: newDesc })
+      setNewTitle('')
+      setNewDesc('')
+      setExpandedId(row.id)
+    })()
+  }
+
+  const handleDeletePhoto = (photoId: string) => {
+    const photo = taskPhotos.find((p) => p.id === photoId)
+    if (!photo || !canEdit || !canManageTaskPhoto(photo, user)) return
+    void deleteTaskPhoto(photoId)
   }
 
   return (
@@ -134,11 +141,10 @@ export function TaskList({
                 expanded={activeExpandedId === task.id}
                 onToggleExpand={() => toggleExpand(task.id)}
                 onToggleDone={(done) => {
-                  updateJobTask(task.id, { is_completed: done })
+                  void updateJobTask(task.id, { is_completed: done })
                 }}
                 photoNote={getNote(task.id)}
                 onPhotoNoteChange={(v) => setNote(task.id, v)}
-                onRequestPhotoUpload={() => openUpload(task.id)}
                 onPhotoClick={setPreview}
                 onEditPhoto={canEdit ? openEditPhoto : undefined}
                 disabled={!canEdit}
@@ -178,39 +184,47 @@ export function TaskList({
       <TaskPhotoUploadModal
         key={
           uploadSession
-            ? `${uploadSession.kind}-${
-                uploadSession.kind === 'edit' ? uploadSession.photo.id : uploadSession.taskId
-              }-${uploadSession.key}`
+            ? `${uploadSession.kind}-${uploadSession.photo.id}-${uploadSession.key}`
             : 'closed'
         }
         open={uploadSession !== null}
-        mode={uploadSession?.kind === 'edit' ? 'edit' : 'create'}
-        editingPhoto={uploadSession?.kind === 'edit' ? uploadSession.photo : null}
-        initialNote={
-          uploadSession?.kind === 'edit'
-            ? uploadSession.photo.note
-            : uploadSession?.kind === 'create'
-              ? getNote(uploadSession.taskId)
-              : ''
-        }
+        mode="edit"
+        editingPhoto={uploadSession?.photo ?? null}
+        initialNote={uploadSession?.photo.note ?? ''}
         onClose={() => setUploadSession(null)}
-        onSubmit={(input) => {
-          if (input.photoId) {
-            updateTaskPhoto(input.photoId, {
-              image_url: input.image_url,
-              label: input.label,
-              note: input.note,
-            })
-            return
+        onSubmit={async (input) => {
+          if (!user || !canEdit) {
+            throw new Error('You do not have access to manage photos for this job.')
           }
-          if (uploadSession?.kind === 'create') {
-            addTaskPhoto({
-              task_id: uploadSession.taskId,
-              image_url: input.image_url,
+
+          if (!input.photoId) return
+          const current = taskPhotos.find((p) => p.id === input.photoId)
+          if (!current || !canManageTaskPhoto(current, user)) {
+            throw new Error('You can only edit your own uploads.')
+          }
+          const upload = isDataUrl(input.image_url)
+            ? await uploadJobPhotoFromDataUrl({
+              dataUrl: input.image_url,
+              fileName: input.file_name,
+              jobId: job.id,
+                storagePath: current?.storage_path,
+              userId: user.id,
+            })
+            : null
+          try {
+            await updateTaskPhoto(input.photoId, {
+              image_url: upload?.imageUrl ?? input.image_url,
+              storage_path: upload?.storagePath ?? current?.storage_path ?? null,
               label: input.label,
               note: input.note,
-              uploaded_by: uploadedBy,
             })
+          } catch (error) {
+            if (upload?.storagePath && upload.storagePath !== (current?.storage_path ?? null)) {
+              await deleteStoredJobPhoto(upload.storagePath).catch((cleanupError: unknown) =>
+                console.error('Failed to clean up orphaned job photo', cleanupError),
+              )
+            }
+            throw error
           }
         }}
       />
@@ -219,7 +233,7 @@ export function TaskList({
         photo={preview}
         open={Boolean(preview)}
         onClose={() => setPreview(null)}
-        onDelete={canEdit ? deleteTaskPhoto : undefined}
+        onDelete={canEdit ? handleDeletePhoto : undefined}
         onEdit={canEdit ? (p) => openEditPhoto(p) : undefined}
       />
     </div>

@@ -29,10 +29,11 @@ export function CustomersPage() {
 
   const jobCounts = useMemo(() => {
     const counts = new Map<string, { total: number; active: number }>()
+    const closedStatuses = new Set(['completed', 'needs_verification', 'verified', 'canceled'])
     for (const job of jobs) {
       const row = counts.get(job.customer_id) ?? { total: 0, active: 0 }
       row.total += 1
-      if (job.status !== 'completed' && job.status !== 'canceled') row.active += 1
+      if (!closedStatuses.has(job.status)) row.active += 1
       counts.set(job.customer_id, row)
     }
     return counts

@@ -284,7 +284,7 @@ export function CalendarPage() {
           ) {
             return
           }
-          deleteJob(selectedJobId)
+          void deleteJob(selectedJobId)
           setSelectedJobId(null)
         }}
       />

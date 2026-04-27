@@ -26,11 +26,12 @@ export function TaskPhotoUploadModal({
   onClose: () => void
   onSubmit: (input: {
     image_url: string
+    file_name: string | null
     note: string
     label: PhotoLabelId
     /** When set, update this row instead of inserting. */
     photoId?: string
-  }) => void
+  }) => void | Promise<void>
   initialNote?: string
   mode?: 'create' | 'edit'
   editingPhoto?: TaskPhoto | null
@@ -101,20 +102,28 @@ export function TaskPhotoUploadModal({
     reader.readAsDataURL(file)
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const url = mergedDataUrl ?? rawDataUrl
     if (!url) {
       setError('Add a photo first.')
       return
     }
-    onSubmit({
-      image_url: url,
-      note: note.trim(),
-      label: photoLabel,
-      photoId: isEdit && editingPhoto ? editingPhoto.id : undefined,
-    })
-    reset()
-    onClose()
+    setError(null)
+    setBusy(true)
+    try {
+      await onSubmit({
+        image_url: url,
+        file_name: fileName,
+        note: note.trim(),
+        label: photoLabel,
+        photoId: isEdit && editingPhoto ? editingPhoto.id : undefined,
+      })
+      reset()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save that photo.')
+      setBusy(false)
+    }
   }
 
   return (
@@ -142,7 +151,7 @@ export function TaskPhotoUploadModal({
       <Modal
         open={open}
         onClose={handleClose}
-        title="Instruction photo"
+        title="Photo"
         description="Choose a label, add a note, and mark up the image if needed. Changes apply when you save."
         wide
         footer={
@@ -151,7 +160,7 @@ export function TaskPhotoUploadModal({
               Cancel
             </Button>
             <Button type="button" onClick={handleSubmit} disabled={busy || !previewUrl}>
-              Save
+              {busy ? 'Saving…' : 'Save'}
             </Button>
           </>
         }

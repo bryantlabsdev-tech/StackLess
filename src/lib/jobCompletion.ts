@@ -1,8 +1,10 @@
-import type { JobChecklistItem, JobTask } from '../types'
+import type { JobChecklistItem, JobTask, TaskPhoto } from '../types'
 
 export function canMarkJobComplete(
   checklist: JobChecklistItem[],
   tasks: JobTask[],
+  photos: TaskPhoto[] = [],
+  options: { requiresPhotos?: boolean } = {},
 ): { ok: boolean; reason?: string } {
   if (checklist.length === 0) {
     return {
@@ -18,6 +20,18 @@ export function canMarkJobComplete(
   }
   if (tasks.length > 0 && !tasks.every((t) => t.is_completed)) {
     return { ok: false, reason: 'Mark every task complete — expand each one and use the checkbox.' }
+  }
+  if (options.requiresPhotos) {
+    const taskIds = new Set(tasks.map((t) => t.id))
+    const jobPhotos = photos.filter((photo) => taskIds.has(photo.task_id))
+    const hasBefore = jobPhotos.some((photo) => photo.label === 'before')
+    const hasAfter = jobPhotos.some((photo) => photo.label === 'after')
+    if (!hasBefore || !hasAfter) {
+      return {
+        ok: false,
+        reason: 'Upload at least one Before work photo and one After work photo before completing this job.',
+      }
+    }
   }
   return { ok: true }
 }

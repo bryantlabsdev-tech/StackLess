@@ -25,9 +25,13 @@ export interface TaskPhoto {
   id: string
   task_id: string
   image_url: string
+  /** Private Supabase Storage object path, e.g. user_id/job_id/file_name. */
+  storage_path?: string | null
   /** When the shot was taken relative to work — drives filters and badges. */
   label: PhotoLabelId
   note: string
+  /** Auth profile id for upload ownership and crew-only photo filtering. */
+  uploaded_by_id?: string | null
   uploaded_by: string
   created_at: string
   /** Set when image, label, or note is changed after upload. */

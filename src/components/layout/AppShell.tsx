@@ -9,7 +9,8 @@ import {
   IconUsers,
 } from '../icons'
 import { useAuth } from '../../hooks/useAuth'
-import { hasSubscriptionAccess } from '../../lib/subscription'
+import { useAppData } from '../../hooks/useAppData'
+import { useFeedback } from '../../hooks/useFeedback'
 import { Button } from '../ui/Button'
 import { JobModal } from '../jobs/JobModal'
 import { MobileBottomNav } from './MobileBottomNav'
@@ -19,6 +20,7 @@ const adminNav = [
   { to: '/dashboard', label: 'Dashboard', description: 'Overview', Icon: IconDashboard },
   { to: '/calendar', label: 'Schedule', description: 'Month view', Icon: IconCalendar },
   { to: '/jobs', label: 'Jobs', description: 'Work orders', Icon: IconClipboard },
+  { to: '/verification', label: 'Verify', description: 'Review queue', Icon: IconClipboard },
   { to: '/customers', label: 'Customers', description: 'Accounts', Icon: IconUsers },
   { to: '/employees', label: 'Team', description: 'Crew', Icon: IconTeam },
   { to: '/settings', label: 'Settings', description: 'Account', Icon: IconSettings },
@@ -29,13 +31,21 @@ const limitedNav = [
   { to: '/settings', label: 'Settings', description: 'Account', Icon: IconSettings },
 ] as const
 
+const employeeNav = [
+  { to: '/employee-dashboard', label: 'Home', description: 'Today', Icon: IconDashboard },
+  { to: '/my-jobs', label: 'My jobs', description: 'Assigned work', Icon: IconClipboard },
+  { to: '/my-schedule', label: 'Schedule', description: 'My calendar', Icon: IconCalendar },
+] as const
+
 export function AppShell({ variant }: { variant: 'admin' | 'employee' }) {
-  void variant
   const navigate = useNavigate()
-  const { user, logout, developmentBypass } = useAuth()
+  const { user, logout, developmentBypass, workspaceSubscriptionAccess } = useAuth()
+  const { isLoading } = useAppData()
+  const { syncCount } = useFeedback()
   const [jobOpen, setJobOpen] = useState(false)
-  const hasAccess = hasSubscriptionAccess(user)
-  const nav = hasAccess ? adminNav : limitedNav
+  const hasAccess = developmentBypass || workspaceSubscriptionAccess === true || user?.auth_mode === 'development'
+  const nav = variant === 'employee' ? employeeNav : hasAccess ? adminNav : limitedNav
+  const canCreateJobs = variant === 'admin' && hasAccess
 
   const handleLogout = async () => {
     await logout()
@@ -140,7 +150,7 @@ export function AppShell({ variant }: { variant: 'admin' | 'employee' }) {
             <div className="min-w-0">
               <div className="truncate font-semibold text-slate-950 dark:text-[#F8FAFC]">StackLess</div>
               <div className="text-[11px] text-slate-500 dark:text-[#94A3B8]">
-                Command center
+                {variant === 'employee' ? 'Crew workspace' : 'Command center'}
               </div>
             </div>
           </div>
@@ -157,10 +167,15 @@ export function AppShell({ variant }: { variant: 'admin' | 'employee' }) {
         </header>
 
         <main className="w-full min-w-0 max-w-full flex-1 px-3 pb-[calc(7.75rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pt-8 md:px-8 md:py-8 lg:px-10">
+          {isLoading || syncCount > 0 ? (
+            <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-950 shadow-sm dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+              {isLoading ? 'Loading workspace data...' : 'Saving changes...'}
+            </div>
+          ) : null}
           <Outlet />
         </main>
 
-        {hasAccess ? (
+        {canCreateJobs ? (
           <Button
             type="button"
             className="fixed bottom-[calc(5.15rem+env(safe-area-inset-bottom))] right-3 z-50 min-h-12 rounded-full px-5 text-sm shadow-xl shadow-blue-950/25 md:hidden"
@@ -170,7 +185,9 @@ export function AppShell({ variant }: { variant: 'admin' | 'employee' }) {
           </Button>
         ) : null}
         <MobileBottomNav items={nav} />
-        <JobModal open={jobOpen} onClose={() => setJobOpen(false)} jobId={null} />
+        {variant === 'admin' ? (
+          <JobModal open={jobOpen} onClose={() => setJobOpen(false)} jobId={null} />
+        ) : null}
       </div>
     </div>
   )

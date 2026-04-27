@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { safePostLoginPath } from '../auth/routeAccess'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -8,6 +8,8 @@ import { useAuth } from '../hooks/useAuth'
 export function SignupPage() {
   const { user, signup } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const inviteToken = searchParams.get('invite')?.trim() || undefined
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -25,7 +27,7 @@ export function SignupPage() {
     setSubmitting(true)
 
     try {
-      const result = await signup(email, password)
+      const result = await signup(email, password, inviteToken)
       if (result.session && result.profile) {
         navigate(safePostLoginPath(undefined, result.profile.role), { replace: true })
         return
@@ -34,7 +36,11 @@ export function SignupPage() {
         setMessage('Account created. Your profile is still syncing, so please sign in again in a moment.')
         return
       }
-      setMessage('Account created. Check your email to confirm your address, then sign in.')
+      setMessage(
+        inviteToken
+          ? 'Account created. Check your email to confirm your address, then sign in from this invite link to connect your crew profile.'
+          : 'Account created. Check your email to confirm your address, then sign in.',
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create your account.')
     } finally {
@@ -53,7 +59,9 @@ export function SignupPage() {
             Create your StackLess account
           </h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-[#94A3B8]">
-            Start managing your schedule, jobs, customers, and team.
+            {inviteToken
+              ? 'Create your crew account to join your team workspace.'
+              : 'Start managing your schedule, jobs, customers, and team.'}
           </p>
         </div>
 
@@ -67,6 +75,11 @@ export function SignupPage() {
             onChange={(event) => setEmail(event.target.value)}
             required
           />
+          {inviteToken ? (
+            <p className="rounded-[14px] border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-sm text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+              This signup is tied to a crew invite. After signup, your account will be linked to your employee profile.
+            </p>
+          ) : null}
           <Input
             id="signup-password"
             label="Password"
@@ -97,7 +110,10 @@ export function SignupPage() {
 
         <p className="mt-6 text-center text-sm text-slate-500 dark:text-[#94A3B8]">
           Already have an account?{' '}
-          <Link className="font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-300" to="/login">
+          <Link
+            className="font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-300"
+            to={inviteToken ? `/login?invite=${encodeURIComponent(inviteToken)}` : '/login'}
+          >
             Sign in
           </Link>
         </p>

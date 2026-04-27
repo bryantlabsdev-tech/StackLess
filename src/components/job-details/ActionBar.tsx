@@ -11,6 +11,8 @@ import { Modal } from '../ui/Modal'
 
 function jobActionPhase(job: Job, started: boolean, completed: boolean) {
   if (job.status === 'canceled') return 'canceled' as const
+  if (job.status === 'verified') return 'verified' as const
+  if (job.status === 'needs_verification') return 'needs_verification' as const
   if (completed || job.status === 'completed') return 'completed' as const
   if (started) return 'in_progress' as const
   return 'not_started' as const
@@ -37,7 +39,11 @@ export function ActionBar({
 
   const started = Boolean(job.work_started_at)
   const completed = Boolean(job.work_completed_at)
-  const terminal = job.status === 'completed' || job.status === 'canceled'
+  const terminal =
+    job.status === 'completed' ||
+    job.status === 'needs_verification' ||
+    job.status === 'verified' ||
+    job.status === 'canceled'
 
   const phase = jobActionPhase(job, started, completed)
   useLiveWorkClockTick(phase === 'in_progress')
@@ -58,9 +64,11 @@ export function ActionBar({
       ? 'bg-slate-100 text-slate-700 ring-slate-200/90 dark:bg-slate-800 dark:text-gray-200 dark:ring-slate-600'
       : phase === 'in_progress'
         ? 'bg-emerald-100 text-emerald-900 ring-emerald-200/80 dark:bg-emerald-950/80 dark:text-emerald-100 dark:ring-emerald-800/80'
-        : phase === 'completed'
+        : phase === 'completed' || phase === 'verified'
           ? 'bg-slate-200/90 text-slate-800 ring-slate-300/80 dark:bg-slate-700 dark:text-gray-100 dark:ring-slate-600'
-          : 'bg-amber-100 text-amber-950 ring-amber-200/80 dark:bg-amber-950/50 dark:text-amber-100 dark:ring-amber-900/50'
+          : phase === 'needs_verification'
+            ? 'bg-amber-100 text-amber-950 ring-amber-200/80 dark:bg-amber-950/50 dark:text-amber-100 dark:ring-amber-900/50'
+            : 'bg-red-100 text-red-800 ring-red-200/80 dark:bg-red-950/50 dark:text-red-100 dark:ring-red-900/50'
 
   const statusLabel =
     phase === 'not_started'
@@ -69,7 +77,11 @@ export function ActionBar({
         ? 'In progress'
         : phase === 'completed'
           ? 'Completed'
-          : 'Canceled'
+          : phase === 'needs_verification'
+            ? 'Needs verification'
+            : phase === 'verified'
+              ? 'Verified'
+              : 'Canceled'
 
   return (
     <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
@@ -122,6 +134,18 @@ export function ActionBar({
       {phase === 'completed' ? (
         <p className="mt-4 text-sm text-slate-600 dark:text-gray-400">
           This job is closed. Recorded times are shown below.
+        </p>
+      ) : null}
+
+      {phase === 'needs_verification' ? (
+        <p className="mt-4 text-sm text-amber-900/85 dark:text-amber-200/85">
+          Work is complete and waiting for admin review.
+        </p>
+      ) : null}
+
+      {phase === 'verified' ? (
+        <p className="mt-4 text-sm text-slate-600 dark:text-gray-400">
+          This job has been reviewed and verified.
         </p>
       ) : null}
 

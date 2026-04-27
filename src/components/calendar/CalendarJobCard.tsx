@@ -5,6 +5,7 @@ import {
   formatAssigneesSummary,
   primaryAssigneeIdForColor,
 } from '../../lib/jobAssignees'
+import { formatJobValue, optionalJobValue } from '../../lib/jobValue'
 import { CrewFacepile } from '../ui/CrewFacepile'
 import { JOB_STATUS_LABELS, type Job, type JobStatus } from '../../types'
 import { cal } from './calendarSurfaces'
@@ -19,6 +20,10 @@ function statusAccent(status: JobStatus): string {
       return 'bg-violet-500 dark:bg-violet-400'
     case 'completed':
       return 'bg-slate-400 dark:bg-slate-500'
+    case 'needs_verification':
+      return 'bg-amber-500 dark:bg-amber-400'
+    case 'verified':
+      return 'bg-teal-500 dark:bg-teal-400'
     case 'canceled':
       return 'bg-red-400 dark:bg-red-500'
   }
@@ -37,6 +42,7 @@ export function CalendarJobCard({
   const crew = formatAssigneesSummary(job.assignees, employees)
   const unassigned = crew.unassigned
   const crewTitle = crewNamesSentence(job.assignees, employees)
+  const value = optionalJobValue(job)
   const cardTitle = [job.title, job.customer_name, crewTitle || 'Unassigned'].filter(Boolean).join(' — ')
 
   return (
@@ -81,6 +87,11 @@ export function CalendarJobCard({
           <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-300">
             {job.start_time}–{job.end_time}
           </span>
+          {value == null ? null : (
+            <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-300">
+              {formatJobValue(value)}
+            </span>
+          )}
           {unassigned ? (
             <span className="max-w-[100%] truncate rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none bg-amber-100/95 text-amber-950 ring-1 ring-amber-200/90 dark:bg-amber-950/60 dark:text-amber-100 dark:ring-amber-800">
               Unassigned

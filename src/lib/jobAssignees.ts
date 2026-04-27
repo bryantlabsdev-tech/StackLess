@@ -14,7 +14,9 @@ export function migrateAssigneeIdsFromUnknown(job: unknown): string[] {
 }
 
 export function stripLegacyAssignFields<T extends Record<string, unknown>>(job: T): T {
-  const { assigned_employee_id: _a, assigned_employee_name: _n, ...rest } = job
+  const rest = { ...job }
+  delete rest.assigned_employee_id
+  delete rest.assigned_employee_name
   return rest as T
 }
 
@@ -70,7 +72,13 @@ export function addAssigneeToJobPatch(job: Job, employeeId: string): Partial<Job
 export function removeAssigneeFromJobPatch(job: Job, employeeId: string): Partial<Job> {
   const next = job.assignees.filter((id) => id !== employeeId)
   let status = job.status
-  if (next.length === 0 && status !== 'canceled' && status !== 'completed') {
+  if (
+    next.length === 0 &&
+    status !== 'canceled' &&
+    status !== 'completed' &&
+    status !== 'needs_verification' &&
+    status !== 'verified'
+  ) {
     status = 'unassigned'
   }
   return { assignees: next, status }

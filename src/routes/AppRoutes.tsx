@@ -1,16 +1,22 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { BillingPage } from '../pages/BillingPage'
 import { CalendarPage } from '../pages/CalendarPage'
 import { CustomersPage } from '../pages/CustomersPage'
 import { DashboardPage } from '../pages/DashboardPage'
+import { EmployeeDashboardPage } from '../pages/EmployeeDashboardPage'
+import { EmployeeJobExecutionPage } from '../pages/EmployeeJobExecutionPage'
 import { EmployeesPage } from '../pages/EmployeesPage'
 import { JobDetailPage } from '../pages/JobDetailPage'
 import { JobsPage } from '../pages/JobsPage'
 import { LandingPage } from '../pages/LandingPage'
 import { LoginPage } from '../pages/LoginPage'
+import { MyJobsPage } from '../pages/MyJobsPage'
+import { MySchedulePage } from '../pages/MySchedulePage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { SignupPage } from '../pages/SignupPage'
+import { VerificationInboxPage } from '../pages/VerificationInboxPage'
 import { AdminLayout } from '../layouts/AdminLayout'
+import { EmployeeLayout } from '../layouts/EmployeeLayout'
 import { CatchAllRedirect } from './redirects'
 
 export function AppRoutes() {
@@ -27,14 +33,17 @@ export function AppRoutes() {
         <Route path="/employees" element={<EmployeesPage />} />
         <Route path="/jobs/:jobId" element={<JobDetailPage />} />
         <Route path="/jobs" element={<JobsPage />} />
+        <Route path="/verification" element={<VerificationInboxPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 
-      <Route path="/employee-dashboard" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/my-jobs/:jobId" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/my-jobs" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/my-schedule" element={<Navigate to="/dashboard" replace />} />
+      <Route element={<EmployeeLayout />}>
+        <Route path="/employee-dashboard" element={<EmployeeDashboardPage />} />
+        <Route path="/my-jobs/:jobId" element={<EmployeeJobExecutionPage />} />
+        <Route path="/my-jobs" element={<MyJobsPage />} />
+        <Route path="/my-schedule" element={<MySchedulePage />} />
+      </Route>
 
       <Route path="*" element={<CatchAllRedirect />} />
     </Routes>

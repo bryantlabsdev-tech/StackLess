@@ -12,7 +12,8 @@ alter table public.profiles
   add column if not exists stripe_subscription_id text,
   add column if not exists subscription_status text,
   add column if not exists trial_ends_at timestamptz,
-  add column if not exists is_active boolean not null default false;
+  add column if not exists is_active boolean not null default false,
+  add column if not exists employee_id text;
 
 create index if not exists profiles_stripe_customer_id_idx
   on public.profiles (stripe_customer_id);

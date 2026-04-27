@@ -4,7 +4,7 @@ import { PageContainer } from '../components/layout/PageContainer'
 import { ThemeToggle } from '../components/layout/ThemeToggle'
 import { Button } from '../components/ui/Button'
 import { createPortalSession } from '../lib/billing'
-import { formatTrialEnd, hasSubscriptionAccess } from '../lib/subscription'
+import { formatTrialEnd } from '../lib/subscription'
 import { useAuth } from '../hooks/useAuth'
 
 function SettingsCard({
@@ -43,7 +43,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 export function SettingsPage() {
-  const { user, logout, refreshProfile } = useAuth()
+  const { user, logout, refreshProfile, workspaceSubscriptionAccess } = useAuth()
   const navigate = useNavigate()
   const [loadingAction, setLoadingAction] = useState<'portal' | 'refresh' | 'signout' | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -82,7 +82,7 @@ export function SettingsPage() {
 
   const subscriptionStatus = user?.subscription_status ?? 'not started'
   const trialEnd = formatTrialEnd(user)
-  const hasAccess = hasSubscriptionAccess(user)
+  const hasAccess = workspaceSubscriptionAccess === true
 
   return (
     <PageContainer>

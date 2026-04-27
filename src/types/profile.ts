@@ -30,6 +30,8 @@ export interface Profile {
   subscription_status?: SubscriptionStatus
   trial_ends_at?: string | null
   is_active?: boolean
+  /** Tenant boundary for operational data. */
+  organization_id?: string | null
   /** Set when `role === 'employee'` — matches `employees.id` */
   employee_id: string | null
   /** Present on mock / dev sessions; omit in production profiles if you prefer */

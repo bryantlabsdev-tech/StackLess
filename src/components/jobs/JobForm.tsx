@@ -1,18 +1,25 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAppData } from '../../hooks/useAppData'
-import { CustomerFieldsForm, emptyCustomerDraft } from '../customers/CustomerFieldsForm'
+import { CustomerFieldsForm } from '../customers/CustomerFieldsForm'
+import { emptyCustomerDraft } from '../../lib/customerDraft'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { Textarea } from '../ui/Textarea'
 import type { Customer, Employee, Job, JobStatus } from '../../types'
 import { JOB_STATUS_LABELS } from '../../types'
+import {
+  CreateJobPhotosSection,
+  type PendingJobPhoto,
+} from './CreateJobPhotosSection'
 
 const STATUSES: JobStatus[] = [
   'unassigned',
   'scheduled',
   'in_progress',
   'completed',
+  'needs_verification',
+  'verified',
   'canceled',
 ]
 
@@ -36,6 +43,7 @@ export function JobForm({
   initial,
   scheduleDateLabel,
   submitLabel,
+  showCreatePhotos = false,
   onSubmit,
   onCancel,
 }: {
@@ -45,19 +53,45 @@ export function JobForm({
   /** Shown when opening “new job” from calendar with a pre-filled date. */
   scheduleDateLabel?: string
   submitLabel: string
-  onSubmit: (values: Omit<Job, 'id'>) => void
+  showCreatePhotos?: boolean
+  onSubmit: (values: Omit<Job, 'id'>, pendingPhotos: PendingJobPhoto[]) => void | Promise<void>
   onCancel: () => void
 }) {
   const { addCustomer } = useAppData()
   const [values, setValues] = useState<Omit<Job, 'id'>>(() => initial)
+  const [pendingPhotos, setPendingPhotos] = useState<PendingJobPhoto[]>([])
   const [customerSearch, setCustomerSearch] = useState('')
   const [newCustomerOpen, setNewCustomerOpen] = useState(false)
   const [newCustomerDraft, setNewCustomerDraft] = useState(emptyCustomerDraft)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const latestPendingPhotos = useRef<PendingJobPhoto[]>([])
   /** Until parent `customers` includes the new id, keep a snapshot so the customer select shows the right label. */
   const [pendingCustomer, setPendingCustomer] = useState<Customer | null>(null)
 
   const set = (patch: Partial<Omit<Job, 'id'>>) =>
     setValues((v) => ({ ...v, ...patch }))
+
+  useEffect(() => {
+    latestPendingPhotos.current = pendingPhotos
+  }, [pendingPhotos])
+
+  useEffect(() => {
+    return () => {
+      for (const p of latestPendingPhotos.current) URL.revokeObjectURL(p.previewUrl)
+    }
+  }, [])
+
+  const addPendingPhotos = (photos: PendingJobPhoto[]) => {
+    setPendingPhotos((prev) => [...prev, ...photos])
+  }
+
+  const removePendingPhoto = (photoId: string) => {
+    setPendingPhotos((prev) => {
+      const photo = prev.find((p) => p.id === photoId)
+      if (photo) URL.revokeObjectURL(photo.previewUrl)
+      return prev.filter((p) => p.id !== photoId)
+    })
+  }
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((c) => matchesCustomerSearch(c, customerSearch))
@@ -89,11 +123,25 @@ export function JobForm({
     })
   }
 
+  const handleJobValueChange = (raw: string) => {
+    if (raw === '') {
+      set({ job_value: null })
+      return
+    }
+    if (!/^\d*(\.\d{0,2})?$/.test(raw)) return
+    set({ job_value: Number(raw) })
+  }
+
   const toggleAssignee = (id: string) => {
     const has = values.assignees.includes(id)
     const next = has ? values.assignees.filter((x) => x !== id) : [...values.assignees, id]
     let status = values.status
-    if (status !== 'completed' && status !== 'canceled') {
+    if (
+      status !== 'completed' &&
+      status !== 'needs_verification' &&
+      status !== 'verified' &&
+      status !== 'canceled'
+    ) {
       if (next.length === 0) status = 'unassigned'
       else if (status === 'unassigned') status = 'scheduled'
     }
@@ -123,11 +171,16 @@ export function JobForm({
     closeNewCustomer()
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!values.title.trim()) return
     if (!values.customer_id) return
-    onSubmit(values)
+    setIsSubmitting(true)
+    try {
+      await onSubmit(values, pendingPhotos)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -275,6 +328,18 @@ export function JobForm({
         placeholder="Service type"
       />
       <Input
+        label="Job Value ($)"
+        type="text"
+        inputMode="decimal"
+        pattern="[0-9]*[.]?[0-9]*"
+        value={values.job_value ?? ''}
+        onChange={(e) => handleJobValueChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault()
+        }}
+        placeholder="Optional"
+      />
+      <Input
         label="Address"
         value={values.address}
         onChange={(e) => set({ address: e.target.value })}
@@ -344,20 +409,43 @@ export function JobForm({
         onChange={(e) => set({ notes: e.target.value })}
         placeholder="Notes for the crew"
       />
-      <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-slate-100 bg-white px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-4 dark:border-[#1F2A36] dark:bg-[#11161D] sm:static sm:mx-0 sm:flex-row sm:justify-end sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-5 sm:dark:bg-transparent">
-        <Button type="button" variant="secondary" onClick={onCancel}>
+      <label className="flex cursor-pointer items-start gap-3 rounded-[18px] border border-slate-200 bg-slate-50/70 p-4 text-sm shadow-sm dark:border-[#1F2A36] dark:bg-[#11161D]">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-[#151B23]"
+          checked={values.requires_photos}
+          onChange={(e) => set({ requires_photos: e.target.checked })}
+        />
+        <span>
+          <span className="block font-semibold text-slate-900 dark:text-[#F8FAFC]">
+            Require proof photos before completion
+          </span>
+          <span className="mt-1 block leading-relaxed text-slate-500 dark:text-[#94A3B8]">
+            Crew must upload at least one Before work photo and one After work photo before submitting the job for verification.
+          </span>
+        </span>
+      </label>
+      {showCreatePhotos ? (
+        <CreateJobPhotosSection
+          photos={pendingPhotos}
+          onAddPhotos={addPendingPhotos}
+          onRemovePhoto={removePendingPhoto}
+        />
+      ) : null}
+      <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 dark:border-[#1F2A36] sm:flex-row sm:justify-end sm:pt-5">
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>
         <Button
           type="submit"
-          disabled={newCustomerOpen}
+          disabled={newCustomerOpen || isSubmitting}
           title={
             newCustomerOpen
               ? 'Save or cancel the new customer section first'
               : undefined
           }
         >
-          {submitLabel}
+          {isSubmitting ? 'Saving…' : submitLabel}
         </Button>
       </div>
     </form>

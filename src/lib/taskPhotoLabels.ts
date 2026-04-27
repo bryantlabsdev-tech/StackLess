@@ -5,9 +5,9 @@ export const PHOTO_LABEL_IDS = ['before', 'during', 'after', 'issue', 'reference
 export type PhotoLabelId = (typeof PHOTO_LABEL_IDS)[number]
 
 export const PHOTO_LABEL_COPY: Record<PhotoLabelId, string> = {
-  before: 'Before',
+  before: 'Before work',
   during: 'During',
-  after: 'After',
+  after: 'After work',
   issue: 'Issue',
   reference: 'Reference',
 }

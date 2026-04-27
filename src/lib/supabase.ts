@@ -30,6 +30,8 @@ type ProfileRow = {
   subscription_status: Profile['subscription_status']
   trial_ends_at: string | null
   is_active: boolean | null
+  organization_id: string | null
+  employee_id: string | null
 }
 
 export interface AuthResult {
@@ -53,7 +55,7 @@ function normalizeProfile(row: ProfileRow): Profile {
     full_name: row.full_name ?? profileNameFromEmail(email),
     email,
     phone: '',
-    role: row.role ?? 'admin',
+    role: row.role ?? 'employee',
     status: 'active',
     created_at: row.created_at ?? new Date().toISOString(),
     updated_at: row.updated_at ?? undefined,
@@ -62,7 +64,8 @@ function normalizeProfile(row: ProfileRow): Profile {
     subscription_status: row.subscription_status ?? null,
     trial_ends_at: row.trial_ends_at ?? null,
     is_active: row.is_active ?? false,
-    employee_id: null,
+    organization_id: row.organization_id ?? null,
+    employee_id: row.employee_id ?? null,
     auth_mode: 'production',
   }
 }
@@ -71,7 +74,7 @@ export async function getProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from('profiles')
     .select(
-      'id, full_name, email, role, created_at, updated_at, stripe_customer_id, stripe_subscription_id, subscription_status, trial_ends_at, is_active',
+      'id, full_name, email, role, created_at, updated_at, stripe_customer_id, stripe_subscription_id, subscription_status, trial_ends_at, is_active, organization_id, employee_id',
     )
     .eq('id', userId)
     .maybeSingle()
@@ -89,7 +92,28 @@ async function waitForProfile(userId: string): Promise<Profile | null> {
   return null
 }
 
-export async function signUp(email: string, password: string): Promise<AuthResult> {
+export async function acceptEmployeeInvite(inviteToken: string): Promise<Profile> {
+  const { data, error } = await supabase.rpc('accept_employee_invite', {
+    invite_token: inviteToken,
+  })
+
+  if (error) throw error
+  return normalizeProfile(data as ProfileRow)
+}
+
+export async function fetchOrganizationSubscriptionAccess(organizationId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('organization_has_subscription_access', {
+    target_org_id: organizationId,
+  })
+  if (error) throw error
+  return Boolean(data)
+}
+
+export async function signUp(
+  email: string,
+  password: string,
+  inviteToken?: string,
+): Promise<AuthResult> {
   const normalizedEmail = email.trim().toLowerCase()
   const { data, error } = await supabase.auth.signUp({
     email: normalizedEmail,
@@ -104,7 +128,11 @@ export async function signUp(email: string, password: string): Promise<AuthResul
   if (error) throw error
   if (!data.user) throw new Error('Supabase did not return a user after signup.')
 
-  const profile = data.session ? await waitForProfile(data.user.id) : null
+  const profile = data.session
+    ? inviteToken
+      ? await acceptEmployeeInvite(inviteToken)
+      : await waitForProfile(data.user.id)
+    : null
   return { user: data.user, session: data.session, profile }
 }
 

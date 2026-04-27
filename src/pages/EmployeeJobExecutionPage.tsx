@@ -18,11 +18,7 @@ export function EmployeeJobExecutionPage() {
     return <Navigate to="/my-jobs" replace />
   }
 
-  if (
-    user?.role === 'employee' &&
-    user.employee_id != null &&
-    !job.assignees.includes(user.employee_id)
-  ) {
+  if (user?.role !== 'employee' || !user.employee_id || !job.assignees.includes(user.employee_id)) {
     return <Navigate to="/my-jobs" replace />
   }
 

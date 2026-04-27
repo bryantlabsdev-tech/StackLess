@@ -1,4 +1,5 @@
 import { migrateAssigneeIdsFromUnknown, stripLegacyAssignFields } from './jobAssignees'
+import { normalizeJobValue } from './jobValue'
 import { defaultChecklistForJob } from '../types/jobExecution'
 import type { JobChecklistItem } from '../types/jobExecution'
 import type { Job } from '../types'
@@ -61,8 +62,22 @@ export function ensureJobExecutionFields(job: Job): Job {
   const withAssignees: Job = { ...base, assignees }
   return {
     ...withAssignees,
+    requires_photos:
+      typeof (job as unknown as { requires_photos?: unknown }).requires_photos === 'boolean'
+        ? (job as unknown as { requires_photos: boolean }).requires_photos
+        : true,
+    job_value: normalizeJobValue(
+      (job as unknown as { job_value?: unknown; value?: unknown; price?: unknown; amount?: unknown }).job_value ??
+        (job as unknown as { value?: unknown }).value ??
+        (job as unknown as { price?: unknown }).price ??
+        (job as unknown as { amount?: unknown }).amount,
+    ),
     checklist: normalizeChecklist(withAssignees),
     work_started_at: job.work_started_at ?? null,
     work_completed_at: job.work_completed_at ?? null,
+    verification_feedback:
+      typeof (job as unknown as { verification_feedback?: unknown }).verification_feedback === 'string'
+        ? (job as unknown as { verification_feedback: string }).verification_feedback
+        : '',
   }
 }
