@@ -7,6 +7,7 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { Textarea } from '../ui/Textarea'
+import { blobFromImageDataUrl } from '../../lib/jobPhotoStorage'
 import type { Customer, Employee, Job, JobStatus } from '../../types'
 import { JOB_STATUS_LABELS } from '../../types'
 import {
@@ -84,7 +85,10 @@ export function JobForm({
 
   useEffect(() => {
     return () => {
-      for (const p of latestPendingPhotos.current) URL.revokeObjectURL(p.previewUrl)
+      for (const p of latestPendingPhotos.current) {
+        URL.revokeObjectURL(p.previewUrl)
+        if (p.markedUpPreviewUrl) URL.revokeObjectURL(p.markedUpPreviewUrl)
+      }
     }
   }, [])
 
@@ -95,13 +99,34 @@ export function JobForm({
   const removePendingPhoto = (photoId: string) => {
     setPendingPhotos((prev) => {
       const photo = prev.find((p) => p.id === photoId)
-      if (photo) URL.revokeObjectURL(photo.previewUrl)
+      if (photo) {
+        URL.revokeObjectURL(photo.previewUrl)
+        if (photo.markedUpPreviewUrl) URL.revokeObjectURL(photo.markedUpPreviewUrl)
+      }
       return prev.filter((p) => p.id !== photoId)
     })
   }
 
   const changePendingLabel = (photoId: string, label: PhotoLabelId) => {
     setPendingPhotos((prev) => prev.map((p) => (p.id === photoId ? { ...p, label } : p)))
+  }
+
+  const applyPendingMarkup = (photoId: string, mergedDataUrl: string) => {
+    setPendingPhotos((prev) =>
+      prev.map((p) => {
+        if (p.id !== photoId) return p
+        if (p.markedUpPreviewUrl) URL.revokeObjectURL(p.markedUpPreviewUrl)
+        const blob = blobFromImageDataUrl(mergedDataUrl)
+        const base = p.file.name.replace(/\.[^.]+$/, '') || 'photo'
+        const nextName = `${base}-marked.jpg`
+        const file = new File([blob], nextName, { type: blob.type || 'image/jpeg' })
+        return {
+          ...p,
+          markedUpFile: file,
+          markedUpPreviewUrl: URL.createObjectURL(file),
+        }
+      }),
+    )
   }
 
   const filteredCustomers = useMemo(() => {
@@ -351,6 +376,7 @@ export function JobForm({
           onAddPhotos={addPendingPhotos}
           onRemovePhoto={removePendingPhoto}
           onChangeLabel={changePendingLabel}
+          onMarkupSave={applyPendingMarkup}
         />
       ) : null}
 

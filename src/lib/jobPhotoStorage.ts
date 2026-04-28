@@ -33,6 +33,11 @@ function blobFromDataUrl(dataUrl: string) {
   return new Blob([bytes], { type: mime })
 }
 
+/** JPEG/PNG data URL from PhotoMarkupEditor → Blob for building a `File` before job save. */
+export function blobFromImageDataUrl(dataUrl: string): Blob {
+  return blobFromDataUrl(dataUrl)
+}
+
 export function isDataUrl(value: string) {
   return value.startsWith('data:')
 }

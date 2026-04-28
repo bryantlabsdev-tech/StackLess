@@ -26,6 +26,10 @@ export interface AppDataContextValue {
     employeeId: string,
     input: { contact_email?: string; contact_phone?: string },
   ) => Promise<EmployeeInvite>
+  updateEmployeeInviteContact: (
+    inviteId: string,
+    input: { contact_email?: string; contact_phone?: string },
+  ) => Promise<EmployeeInvite>
   getTasksForJob: (jobId: string) => JobTask[]
   addJobTask: (jobId: string, input: { title: string; description: string }) => Promise<JobTask>
   updateJobTask: (

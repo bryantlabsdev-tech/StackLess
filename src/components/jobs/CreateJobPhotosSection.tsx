@@ -1,7 +1,12 @@
-import { useId, useMemo } from 'react'
+import { lazy, Suspense, useId, useMemo, useState } from 'react'
 import { PHOTO_LABEL_COPY, type PhotoLabelId } from '../../lib/taskPhotoLabels'
 import { MAX_TASK_PHOTO_BYTES } from '../../lib/taskPhotoUtils'
 import { Button } from '../ui/Button'
+
+const PhotoMarkupEditor = lazy(async () => {
+  const m = await import('../photo-markup/PhotoMarkupEditor')
+  return { default: m.PhotoMarkupEditor }
+})
 
 /** Labels available when attaching photos before the job row exists (no TaskPhotoUploadModal). */
 const CREATION_LABEL_IDS = ['before', 'after', 'reference'] as const satisfies readonly PhotoLabelId[]
@@ -11,6 +16,9 @@ export type PendingJobPhoto = {
   file: File
   previewUrl: string
   label: PhotoLabelId
+  /** Present after user saves markup in the editor; this is what uploads on Create job. */
+  markedUpFile?: File
+  markedUpPreviewUrl?: string
 }
 
 const THUMB_SIZE_PX = 72
@@ -20,15 +28,25 @@ export function CreateJobPhotosSection({
   onAddPhotos,
   onRemovePhoto,
   onChangeLabel,
+  onMarkupSave,
 }: {
   photos: PendingJobPhoto[]
   onAddPhotos: (photos: PendingJobPhoto[]) => void
   onRemovePhoto: (photoId: string) => void
   onChangeLabel: (photoId: string, label: PhotoLabelId) => void
+  /** Persist markup as local File + preview URL (no DB until Create job). */
+  onMarkupSave: (photoId: string, mergedDataUrl: string) => void
 }) {
   const inputId = useId()
+  const [markupPhotoId, setMarkupPhotoId] = useState<string | null>(null)
+
+  const markupPhoto = markupPhotoId ? photos.find((p) => p.id === markupPhotoId) : undefined
+  const editorSrc = markupPhoto
+    ? markupPhoto.markedUpPreviewUrl ?? markupPhoto.previewUrl
+    : null
+
   const totalSize = useMemo(
-    () => photos.reduce((sum, p) => sum + p.file.size, 0),
+    () => photos.reduce((sum, p) => sum + (p.markedUpFile?.size ?? p.file.size), 0),
     [photos],
   )
 
@@ -47,7 +65,28 @@ export function CreateJobPhotosSection({
   }
 
   return (
-    <section className="min-w-0 shrink-0 rounded-[18px] border border-slate-200 bg-slate-50/50 p-3 dark:border-[#1F2A36] dark:bg-[#11161D]">
+    <>
+      {markupPhotoId && editorSrc ? (
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950 text-sm text-slate-400">
+              Loading editor…
+            </div>
+          }
+        >
+          <PhotoMarkupEditor
+            key={editorSrc}
+            imageSrc={editorSrc}
+            onClose={() => setMarkupPhotoId(null)}
+            onSave={(dataUrl) => {
+              onMarkupSave(markupPhotoId, dataUrl)
+              setMarkupPhotoId(null)
+            }}
+          />
+        </Suspense>
+      ) : null}
+
+      <section className="min-w-0 shrink-0 rounded-[18px] border border-slate-200 bg-slate-50/50 p-3 dark:border-[#1F2A36] dark:bg-[#11161D]">
       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-[#F8FAFC]">Photos</h3>
@@ -84,7 +123,7 @@ export function CreateJobPhotosSection({
               {photos.map((photo) => (
                 <li key={photo.id} className="flex gap-2 py-2 first:pt-1 last:pb-1">
                   <img
-                    src={photo.previewUrl}
+                    src={photo.markedUpPreviewUrl ?? photo.previewUrl}
                     alt=""
                     width={THUMB_SIZE_PX}
                     height={THUMB_SIZE_PX}
@@ -113,14 +152,24 @@ export function CreateJobPhotosSection({
                         </button>
                       ))}
                     </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="mt-1.5 min-h-8 w-full max-w-[10rem] !px-2 !py-1 text-[11px] sm:w-auto"
-                      onClick={() => onRemovePhoto(photo.id)}
-                    >
-                      Remove
-                    </Button>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="min-h-8 !px-2.5 !py-1 text-[11px]"
+                        onClick={() => setMarkupPhotoId(photo.id)}
+                      >
+                        {photo.markedUpFile ? 'Edit markup' : 'Markup'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="min-h-8 !px-2 !py-1 text-[11px]"
+                        onClick={() => onRemovePhoto(photo.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
                   </div>
                 </li>
               ))}
@@ -133,5 +182,6 @@ export function CreateJobPhotosSection({
         </p>
       )}
     </section>
+    </>
   )
 }

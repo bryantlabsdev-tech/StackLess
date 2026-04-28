@@ -838,6 +838,51 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [organizationId, userId],
   )
 
+  const updateEmployeeInviteContact = useCallback(
+    async (
+      inviteId: string,
+      input: { contact_email?: string; contact_phone?: string },
+    ): Promise<EmployeeInvite> => {
+      const orgId = requireOrgId(organizationId)
+      const patch = {
+        contact_email: input.contact_email?.trim().toLowerCase() || null,
+        contact_phone: input.contact_phone?.trim() || null,
+      }
+      const { data, error } = await supabase
+        .from('employee_invites')
+        .update(patch)
+        .eq('id', inviteId)
+        .eq('organization_id', orgId)
+        .select('*')
+        .single()
+      if (error) throw error
+      const invite = data as DbEmployeeInvite
+      const normalized: EmployeeInvite = {
+        id: invite.id,
+        organization_id: invite.organization_id,
+        employee_id: invite.employee_id,
+        token: invite.token,
+        contact_email: invite.contact_email,
+        contact_phone: invite.contact_phone,
+        status: invite.status,
+        invited_by: invite.invited_by,
+        accepted_by: invite.accepted_by,
+        accepted_at: invite.accepted_at,
+        expires_at: invite.expires_at,
+        email_sent_at: invite.email_sent_at ?? null,
+        email_send_error: invite.email_send_error ?? null,
+        sms_sent_at: invite.sms_sent_at ?? null,
+        sms_send_error: invite.sms_send_error ?? null,
+        created_at: invite.created_at,
+      }
+      setEmployeeInvites((prev) =>
+        prev.map((row) => (row.id === inviteId ? normalized : row)),
+      )
+      return normalized
+    },
+    [organizationId],
+  )
+
   const updateJob = useCallback(
     async (id: string, patch: Partial<Job>) => {
       const current = jobs.find((x) => x.id === id)
@@ -1384,6 +1429,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       updateEmployee,
       getEmployee,
       createEmployeeInvite,
+      updateEmployeeInviteContact,
       refreshWorkspaceFromDb: refreshWorkspaceStateFromDb,
       getTasksForJob,
       addJobTask,
@@ -1425,6 +1471,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       updateEmployee,
       getEmployee,
       createEmployeeInvite,
+      updateEmployeeInviteContact,
       refreshWorkspaceStateFromDb,
       getTasksForJob,
       addJobTask,

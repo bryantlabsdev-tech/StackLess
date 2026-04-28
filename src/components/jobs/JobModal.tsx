@@ -87,9 +87,10 @@ export function JobModal({
     const uploadedBy = user.full_name?.trim() || 'StackLess user'
     const results = await Promise.allSettled(
       pendingPhotos.map(async (photo) => {
+        const uploadSource = photo.markedUpFile ?? photo.file
         const upload = await uploadJobPhotoBlob({
-          blob: photo.file,
-          fileName: photo.file.name,
+          blob: uploadSource,
+          fileName: uploadSource.name,
           jobId: createdJob.id,
           userId: user.id,
         })
