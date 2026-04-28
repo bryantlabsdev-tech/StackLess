@@ -5,6 +5,7 @@ import { useAppData } from '../hooks/useAppData'
 import { PageContainer } from '../components/layout/PageContainer'
 import { JobModal } from '../components/jobs/JobModal'
 import { Button } from '../components/ui/Button'
+import { DownloadIosAppButton } from '../components/ui/DownloadIosAppButton'
 import { EmptyState } from '../components/ui/EmptyState'
 import { JobStatusBadge } from '../components/ui/Badge'
 import { CrewAssignmentInline } from '../components/ui/CrewFacepile'
@@ -265,13 +266,14 @@ export function DashboardPage() {
               Track jobs, crew assignments, customers, notes, photos, and schedule changes without jumping between tools.
             </p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Button type="button" onClick={() => setJobOpen(true)}>
               + Add Job
             </Button>
             <Link to="/calendar" className={primaryLinkClass}>
               Open Schedule
             </Link>
+            <DownloadIosAppButton className="w-full sm:w-auto" />
           </div>
         </div>
       </section>

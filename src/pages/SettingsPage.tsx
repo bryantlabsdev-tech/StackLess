@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { PageContainer } from '../components/layout/PageContainer'
 import { ThemeToggle } from '../components/layout/ThemeToggle'
 import { Button } from '../components/ui/Button'
+import { DownloadIosAppButton } from '../components/ui/DownloadIosAppButton'
 import { createPortalSession } from '../lib/billing'
 import { formatTrialEnd } from '../lib/subscription'
 import { useAuth } from '../hooks/useAuth'
@@ -115,6 +116,13 @@ export function SettingsPage() {
               {loadingAction === 'signout' ? 'Signing out...' : 'Sign out'}
             </Button>
           </div>
+        </SettingsCard>
+
+        <SettingsCard
+          title="Mobile app"
+          description="Install the StackLess iPhone app via Apple TestFlight for crew Today View, tasks, and photo uploads."
+        >
+          <DownloadIosAppButton className="w-full sm:w-auto" />
         </SettingsCard>
 
         <SettingsCard

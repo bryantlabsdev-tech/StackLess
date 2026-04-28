@@ -4,6 +4,7 @@ import { useAppData } from '../hooks/useAppData'
 import { AssignJobModal } from '../components/employees/AssignJobModal'
 import { PageContainer } from '../components/layout/PageContainer'
 import { Button } from '../components/ui/Button'
+import { DownloadIosAppButton } from '../components/ui/DownloadIosAppButton'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Input } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
@@ -673,6 +674,15 @@ function EmployeeInviteModal({
             </div>
           </div>
         )}
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 dark:border-[#1F2A36] dark:bg-[#151B23]">
+          <p className="text-sm leading-relaxed text-slate-600 dark:text-[#94A3B8]">
+            Have your employee download the app to complete jobs and upload photos.
+          </p>
+          <div className="mt-3">
+            <DownloadIosAppButton className="w-full sm:w-auto" />
+          </div>
+        </div>
       </div>
     </Modal>
   )
