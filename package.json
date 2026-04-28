@@ -21,12 +21,14 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "konva": "^10.2.5",
+    "libphonenumber-js": "^1.12.42",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-konva": "^19.2.3",
     "react-router-dom": "^7.14.1",
     "resend": "^6.12.2",
-    "stripe": "^22.1.0"
+    "stripe": "^22.1.0",
+    "twilio": "^6.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

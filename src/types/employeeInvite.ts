@@ -16,5 +16,8 @@ export interface EmployeeInvite {
   email_sent_at: string | null
   /** Last email delivery failure message from the send-invite API. */
   email_send_error: string | null
+  /** When the invite SMS was successfully sent via Twilio (server-tracked). */
+  sms_sent_at: string | null
+  sms_send_error: string | null
   created_at: string
 }

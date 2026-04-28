@@ -20,7 +20,8 @@ import {
   type EmployeeTodayOverview,
   type TodayOverviewKind,
 } from '../lib/employeeTodayOverview'
-import { sendEmployeeInviteEmail } from '../lib/inviteEmail'
+import { sendInvite } from '../lib/inviteEmail'
+import { isValidInviteEmail, normalizePhoneToE164 } from '../lib/phoneE164'
 import { formatISODate } from '../lib/format'
 import { initialsFromName } from '../lib/initials'
 import { useAuth } from '../hooks/useAuth'
@@ -522,13 +523,13 @@ function inviteLinkFor(token: string) {
   return `${window.location.origin}${window.location.pathname}#/signup?invite=${encodeURIComponent(token)}`
 }
 
-function inviteEmailDeliveryLabel(invite: EmployeeInvite): 'Pending' | 'Sent' | 'Failed' {
-  if (invite.email_sent_at) return 'Sent'
-  if (invite.email_send_error) return 'Failed'
+function inviteOutboundDeliveryLabel(invite: EmployeeInvite): 'Pending' | 'Sent' | 'Failed' {
+  if (invite.sms_sent_at || invite.email_sent_at) return 'Sent'
+  if (invite.sms_send_error || invite.email_send_error) return 'Failed'
   return 'Pending'
 }
 
-function inviteEmailDeliveryBadgeClass(label: 'Pending' | 'Sent' | 'Failed'): string {
+function inviteOutboundDeliveryBadgeClass(label: 'Pending' | 'Sent' | 'Failed'): string {
   switch (label) {
     case 'Sent':
       return 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700/55 dark:bg-emerald-950/45 dark:text-emerald-100'
@@ -537,6 +538,16 @@ function inviteEmailDeliveryBadgeClass(label: 'Pending' | 'Sent' | 'Failed'): st
     default:
       return 'border-slate-200 bg-white text-slate-600 dark:border-slate-600 dark:bg-slate-900 dark:text-gray-300'
   }
+}
+
+/** Null when contact is valid for invite send/copy; otherwise validation message for display. */
+function inviteContactValidationMessage(emailRaw: string, phoneRaw: string): string | null {
+  const rawEmail = emailRaw.trim()
+  const rawPhone = phoneRaw.trim()
+  if (!rawEmail && !rawPhone) return 'Enter an email or phone number to send an invite.'
+  if (rawPhone && !normalizePhoneToE164(phoneRaw)) return 'Enter a valid phone number.'
+  if (rawEmail && !isValidInviteEmail(emailRaw)) return 'Enter a valid email address.'
+  return null
 }
 
 function EmployeeInviteModal({
@@ -568,36 +579,69 @@ function EmployeeInviteModal({
 
   const invite = latestInvite
   const inviteLink = invite ? inviteLinkFor(invite.token) : null
-  const canCreate = email.trim() !== '' || phone.trim() !== ''
-  const deliveryLabel = invite ? inviteEmailDeliveryLabel(invite) : null
+  const contactReady = inviteContactValidationMessage(email, phone) === null
+  const deliveryLabel = invite ? inviteOutboundDeliveryLabel(invite) : null
 
-  async function sendInviteEmail() {
+  async function sendInviteAction() {
     if (!organizationId) {
       setError('No organization is available for this session.')
       return
     }
-    if (!email.trim()) {
-      setError('Add an email address before sending an invite.')
+    const msg = inviteContactValidationMessage(email, phone)
+    if (msg) {
+      setError(msg)
       return
     }
     setError(null)
     setCopied(false)
     setSending(true)
     try {
-      const result = await sendEmployeeInviteEmail({
-        email: email.trim(),
+      const rawEmail = email.trim()
+      const rawPhone = phone.trim()
+      const result = await sendInvite({
         employeeId: employee.id,
         organizationId,
+        ...(rawEmail ? { email: rawEmail } : {}),
+        ...(rawPhone ? { phone: rawPhone } : {}),
       })
       await onRefreshWorkspace()
-      if (result.email_sent) {
-        notify({ tone: 'success', title: 'Invite sent' })
-      } else {
+      if (!result.ok) {
         notify({
           tone: 'error',
-          title: 'Invite email failed',
+          title: 'Could not send invite',
           detail: result.error,
         })
+        return
+      }
+
+      const partialFail =
+        (result.delivery.attempted_sms && !result.delivery.sms_sent) ||
+        (result.delivery.attempted_email && !result.delivery.email_sent)
+
+      notify({ tone: 'success', title: 'Invite sent' })
+      if (partialFail) {
+        const bits: string[] = []
+        if (
+          result.delivery.attempted_sms &&
+          !result.delivery.sms_sent &&
+          result.delivery.sms_error
+        ) {
+          bits.push(`SMS: ${result.delivery.sms_error}`)
+        }
+        if (
+          result.delivery.attempted_email &&
+          !result.delivery.email_sent &&
+          result.delivery.email_error
+        ) {
+          bits.push(`Email: ${result.delivery.email_error}`)
+        }
+        if (bits.length > 0) {
+          notify({
+            tone: 'info',
+            title: 'Some deliveries failed',
+            detail: bits.join(' · '),
+          })
+        }
       }
     } catch (err) {
       notify({
@@ -611,8 +655,9 @@ function EmployeeInviteModal({
   }
 
   async function handleCopyLink() {
-    if (!canCreate) {
-      setError('Add an email or phone number before copying an invite link.')
+    const msg = inviteContactValidationMessage(email, phone)
+    if (msg) {
+      setError(msg)
       return
     }
     setError(null)
@@ -641,7 +686,7 @@ function EmployeeInviteModal({
     <Modal
       open
       title={`Invite ${employee.full_name}`}
-      description="Send an email invite or copy the signup link so this crew member can link their account."
+      description="Send an SMS or email invite, or copy the signup link so this crew member can link their account."
       onClose={onClose}
       footer={
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -657,8 +702,8 @@ function EmployeeInviteModal({
               {copied ? 'Copied' : copyBusy ? 'Preparing…' : 'Copy link'}
             </Button>
             <Button
-              onClick={sendInviteEmail}
-              disabled={sending || copyBusy || !email.trim() || !organizationId}
+              onClick={sendInviteAction}
+              disabled={sending || copyBusy || !contactReady || !organizationId}
             >
               {sending ? 'Sending…' : 'Send Invite'}
             </Button>
@@ -703,7 +748,7 @@ function EmployeeInviteModal({
               </div>
               {deliveryLabel ? (
                 <span
-                  className={`rounded-full border px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${inviteEmailDeliveryBadgeClass(deliveryLabel)}`}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${inviteOutboundDeliveryBadgeClass(deliveryLabel)}`}
                 >
                   {deliveryLabel}
                 </span>

@@ -3,15 +3,26 @@ import type { EmployeeInvite } from '../types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4242'
 
-export type SendInviteResult =
-  | { invite: EmployeeInvite; email_sent: true }
-  | { invite: EmployeeInvite; email_sent: false; error: string }
+export type InviteDeliveryInfo = {
+  attempted_sms: boolean
+  sms_sent: boolean
+  sms_error: string | null
+  attempted_email: boolean
+  email_sent: boolean
+  email_error: string | null
+}
 
-export async function sendEmployeeInviteEmail(input: {
-  email: string
+export type SendInviteResponse =
+  | { ok: true; invite: EmployeeInvite; delivery: InviteDeliveryInfo }
+  | { ok: false; invite: EmployeeInvite; delivery: InviteDeliveryInfo; error: string }
+
+/** Sends invite via SMS (Twilio) and/or email (Resend); SMS first when both are sent. */
+export async function sendInvite(input: {
   employeeId: string
   organizationId: string
-}): Promise<SendInviteResult> {
+  email?: string
+  phone?: string
+}): Promise<SendInviteResponse> {
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
   const token = data.session?.access_token
@@ -28,24 +39,25 @@ export async function sendEmployeeInviteEmail(input: {
 
   const body = (await response.json()) as {
     invite?: EmployeeInvite
-    email_sent?: boolean
+    delivery?: InviteDeliveryInfo
     error?: string
   }
 
   if (!response.ok) {
-    if (response.status === 502 && body.invite) {
+    if (response.status === 502 && body.invite && body.delivery) {
       return {
+        ok: false,
         invite: body.invite,
-        email_sent: false as const,
-        error: body.error ?? 'Could not deliver invite email.',
+        delivery: body.delivery,
+        error: body.error ?? 'Could not deliver invite.',
       }
     }
     throw new Error(body.error ?? 'Unable to send invite.')
   }
 
-  if (!body.invite || body.email_sent !== true) {
+  if (!body.invite || !body.delivery) {
     throw new Error(body.error ?? 'Unexpected response from invite server.')
   }
 
-  return { invite: body.invite, email_sent: true }
+  return { ok: true, invite: body.invite, delivery: body.delivery }
 }

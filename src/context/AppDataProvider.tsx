@@ -123,6 +123,8 @@ type DbEmployeeInvite = {
   expires_at: string | null
   email_sent_at: string | null
   email_send_error: string | null
+  sms_sent_at: string | null
+  sms_send_error: string | null
   created_at: string
 }
 
@@ -265,6 +267,8 @@ async function loadOperationalData(organizationId: string) {
       expires_at: invite.expires_at,
       email_sent_at: invite.email_sent_at ?? null,
       email_send_error: invite.email_send_error ?? null,
+      sms_sent_at: invite.sms_sent_at ?? null,
+      sms_send_error: invite.sms_send_error ?? null,
       created_at: invite.created_at,
     }),
   )
@@ -824,6 +828,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         expires_at: invite.expires_at,
         email_sent_at: invite.email_sent_at ?? null,
         email_send_error: invite.email_send_error ?? null,
+        sms_sent_at: invite.sms_sent_at ?? null,
+        sms_send_error: invite.sms_send_error ?? null,
         created_at: invite.created_at,
       }
       setEmployeeInvites((prev) => [normalized, ...prev])

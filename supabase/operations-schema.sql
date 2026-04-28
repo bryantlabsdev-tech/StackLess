@@ -324,6 +324,8 @@ create table if not exists public.employee_invites (
   expires_at timestamptz,
   email_sent_at timestamptz,
   email_send_error text,
+  sms_sent_at timestamptz,
+  sms_send_error text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

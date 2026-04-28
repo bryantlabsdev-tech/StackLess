@@ -2,8 +2,10 @@ import 'dotenv/config'
 import { randomUUID } from 'node:crypto'
 import cors from 'cors'
 import express from 'express'
+import { parsePhoneNumberFromString } from 'libphonenumber-js'
 import { Resend } from 'resend'
 import Stripe from 'stripe'
+import twilio from 'twilio'
 import { createClient } from '@supabase/supabase-js'
 
 const PORT = process.env.SERVER_PORT || 4242
@@ -60,7 +62,41 @@ function mapEmployeeInviteRow(row) {
     expires_at: row.expires_at,
     email_sent_at: row.email_sent_at ?? null,
     email_send_error: row.email_send_error ?? null,
+    sms_sent_at: row.sms_sent_at ?? null,
+    sms_send_error: row.sms_send_error ?? null,
     created_at: row.created_at,
+  }
+}
+
+function normalizeInviteEmail(raw) {
+  if (!raw || typeof raw !== 'string') return null
+  const s = raw.trim().toLowerCase()
+  if (!s) return null
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return null
+  return s
+}
+
+function normalizeInvitePhoneE164(raw) {
+  if (!raw || typeof raw !== 'string') return null
+  const parsed = parsePhoneNumberFromString(raw.trim(), 'US')
+  return parsed?.isValid() ? parsed.number : null
+}
+
+function buildInviteDeliverySummary({
+  attemptedSms,
+  smsSent,
+  smsErr,
+  attemptedEmail,
+  emailSent,
+  emailErr,
+}) {
+  return {
+    attempted_sms: attemptedSms,
+    sms_sent: smsSent,
+    sms_error: smsErr ?? null,
+    attempted_email: attemptedEmail,
+    email_sent: emailSent,
+    email_error: emailErr ?? null,
   }
 }
 
@@ -368,23 +404,42 @@ app.post('/api/create-portal-session', requireUser, async (req, res) => {
 })
 
 app.post('/api/send-invite', requireUser, async (req, res) => {
-  const resendApiKey = process.env.RESEND_API_KEY
-  if (!resendApiKey) {
-    return res.status(503).json({ error: 'Email delivery is not configured (RESEND_API_KEY).' })
-  }
-
   const body = req.body && typeof req.body === 'object' ? req.body : {}
-  const email =
-    typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const rawEmail = typeof body.email === 'string' ? body.email.trim() : ''
+  const rawPhone = typeof body.phone === 'string' ? body.phone.trim() : ''
   const employeeId = typeof body.employeeId === 'string' ? body.employeeId.trim() : ''
   const organizationId =
     typeof body.organizationId === 'string' ? body.organizationId.trim() : ''
 
-  if (!email || !email.includes('@')) {
-    return res.status(400).json({ error: 'A valid email address is required.' })
-  }
   if (!employeeId || !organizationId) {
     return res.status(400).json({ error: 'employeeId and organizationId are required.' })
+  }
+  if (rawEmail && !normalizeInviteEmail(rawEmail)) {
+    return res.status(400).json({ error: 'Enter a valid email address.' })
+  }
+  if (rawPhone && !normalizeInvitePhoneE164(rawPhone)) {
+    return res.status(400).json({ error: 'Enter a valid phone number.' })
+  }
+
+  const emailNorm = rawEmail ? normalizeInviteEmail(rawEmail) : null
+  const phoneNorm = rawPhone ? normalizeInvitePhoneE164(rawPhone) : null
+  if (!emailNorm && !phoneNorm) {
+    return res.status(400).json({ error: 'Enter an email or phone number to send an invite.' })
+  }
+
+  const resendApiKey = process.env.RESEND_API_KEY
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN
+  const twilioFrom = process.env.TWILIO_FROM_NUMBER
+
+  if (emailNorm && !resendApiKey) {
+    return res.status(503).json({ error: 'Email delivery is not configured (RESEND_API_KEY).' })
+  }
+  if (phoneNorm && !(twilioSid && twilioToken && twilioFrom)) {
+    return res.status(503).json({
+      error:
+        'SMS delivery is not configured (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER).',
+    })
   }
 
   try {
@@ -418,8 +473,8 @@ app.post('/api/send-invite', requireUser, async (req, res) => {
       organization_id: organizationId,
       employee_id: employeeId,
       token,
-      contact_email: email,
-      contact_phone: null,
+      contact_email: emailNorm,
+      contact_phone: phoneNorm,
       status: 'pending',
       invited_by: req.user.id,
       expires_at: expiresAt,
@@ -437,63 +492,108 @@ app.post('/api/send-invite', requireUser, async (req, res) => {
     }
 
     const signupUrl = signupInviteUrl(token)
-    const resend = new Resend(resendApiKey)
     const label = employeeRow.full_name?.trim() || 'there'
 
-    try {
-      const { error: sendError } = await resend.emails.send({
-        from: RESEND_FROM_EMAIL,
-        to: email,
-        subject: `You're invited to join ${INVITE_APP_NAME}`,
-        html: buildInviteEmailHtml({ signupUrl, inviteeLabel: label }),
-      })
+    const attemptedSms = !!phoneNorm
+    const attemptedEmail = !!emailNorm
+    let smsSent = false
+    let smsErr = null
+    let emailSent = false
+    let emailErr = null
 
-      if (sendError) {
-        throw sendError
-      }
-
-      const { data: emailed, error: emailUpdateError } = await supabaseAdmin
-        .from('employee_invites')
-        .update({
-          email_sent_at: new Date().toISOString(),
-          email_send_error: null,
+    if (attemptedSms) {
+      try {
+        const client = twilio(twilioSid, twilioToken)
+        await client.messages.create({
+          body: `${INVITE_APP_NAME}: You're invited — sign up here: ${signupUrl}`,
+          from: twilioFrom,
+          to: phoneNorm,
         })
-        .eq('id', inserted.id)
-        .select('*')
-        .single()
-
-      if (emailUpdateError || !emailed) {
-        console.error('[send-invite] email_sent_at update failed:', emailUpdateError)
-        return res.status(500).json({
-          error: 'Invite email was sent but could not be confirmed in the database.',
-          invite: mapEmployeeInviteRow(inserted),
-          email_sent: true,
-        })
+        smsSent = true
+        const { error: smsUpdateError } = await supabaseAdmin
+          .from('employee_invites')
+          .update({
+            sms_sent_at: new Date().toISOString(),
+            sms_send_error: null,
+          })
+          .eq('id', inserted.id)
+        if (smsUpdateError) console.error('[send-invite] sms_sent_at update failed:', smsUpdateError)
+      } catch (smsFail) {
+        smsErr =
+          smsFail instanceof Error ? smsFail.message : String(smsFail ?? 'Unknown SMS error')
+        await supabaseAdmin
+          .from('employee_invites')
+          .update({ sms_send_error: smsErr })
+          .eq('id', inserted.id)
+        console.error('[send-invite] Twilio failed:', smsFail)
       }
+    }
 
-      return res.json({
-        invite: mapEmployeeInviteRow(emailed),
-        email_sent: true,
-      })
-    } catch (sendErr) {
-      const msg =
-        sendErr instanceof Error ? sendErr.message : String(sendErr ?? 'Unknown email error')
+    if (attemptedEmail) {
+      try {
+        const resend = new Resend(resendApiKey)
+        const { error: sendError } = await resend.emails.send({
+          from: RESEND_FROM_EMAIL,
+          to: emailNorm,
+          subject: `You're invited to join ${INVITE_APP_NAME}`,
+          html: buildInviteEmailHtml({ signupUrl, inviteeLabel: label }),
+        })
+        if (sendError) throw sendError
 
-      const { data: failedRow } = await supabaseAdmin
-        .from('employee_invites')
-        .update({ email_send_error: msg })
-        .eq('id', inserted.id)
-        .select('*')
-        .single()
+        emailSent = true
+        const { error: emailUpdateError } = await supabaseAdmin
+          .from('employee_invites')
+          .update({
+            email_sent_at: new Date().toISOString(),
+            email_send_error: null,
+          })
+          .eq('id', inserted.id)
+        if (emailUpdateError)
+          console.error('[send-invite] email_sent_at update failed:', emailUpdateError)
+      } catch (emailFail) {
+        emailErr =
+          emailFail instanceof Error ? emailFail.message : String(emailFail ?? 'Unknown email error')
+        await supabaseAdmin
+          .from('employee_invites')
+          .update({ email_send_error: emailErr })
+          .eq('id', inserted.id)
+        console.error('[send-invite] Resend failed:', emailFail)
+      }
+    }
 
-      console.error('[send-invite] Resend failed:', sendErr)
+    const { data: finalInvite } = await supabaseAdmin
+      .from('employee_invites')
+      .select('*')
+      .eq('id', inserted.id)
+      .single()
 
+    const rowOut = finalInvite ?? inserted
+    const delivery = buildInviteDeliverySummary({
+      attemptedSms,
+      smsSent,
+      smsErr,
+      attemptedEmail,
+      emailSent,
+      emailErr,
+    })
+
+    const anyDelivered =
+      (attemptedSms && smsSent) || (attemptedEmail && emailSent)
+
+    if (!anyDelivered) {
+      const detail =
+        [smsErr, emailErr].filter(Boolean).join(' ') || 'Could not deliver invite.'
       return res.status(502).json({
-        error: msg,
-        invite: mapEmployeeInviteRow(failedRow ?? inserted),
-        email_sent: false,
+        error: detail,
+        invite: mapEmployeeInviteRow(rowOut),
+        delivery,
       })
     }
+
+    return res.json({
+      invite: mapEmployeeInviteRow(rowOut),
+      delivery,
+    })
   } catch (error) {
     console.error('Failed to send invite:', error)
     return res.status(500).json({ error: 'Unable to send invite.' })
