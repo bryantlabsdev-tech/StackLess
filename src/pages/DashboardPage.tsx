@@ -276,6 +276,16 @@ export function DashboardPage() {
         </div>
       </section>
 
+      <div
+        data-onboarding="tour-crew-today"
+        className="rounded-[18px] border border-slate-200 bg-slate-50/90 px-4 py-3 dark:border-[#1F2A36] dark:bg-[#151B23] sm:px-5"
+      >
+        <p className="text-sm leading-relaxed text-slate-600 dark:text-[#94A3B8]">
+          <span className="font-semibold text-slate-900 dark:text-[#F8FAFC]">Crew Today View</span>{' '}
+          — assigned team members open Home on their phone to run today&apos;s visits: tasks, checklist, and proof photos.
+        </p>
+      </div>
+
       <OnboardingChecklist
         steps={onboardingSteps}
         completedCount={completedOnboardingSteps}

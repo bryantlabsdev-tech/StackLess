@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAppData } from '../hooks/useAppData'
 import { PageContainer } from '../components/layout/PageContainer'
 import { Button } from '../components/ui/Button'
@@ -8,6 +8,7 @@ import { Input } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
 import { PageHeader } from '../components/ui/PageHeader'
 import type { Customer } from '../types'
+import { registerTourCustomersHandlers, unregisterTourCustomersHandlers } from '../onboarding/tourCustomersHandlers'
 
 export function CustomersPage() {
   const { customers, jobs, addCustomer, updateCustomer } = useAppData()
@@ -39,15 +40,20 @@ export function CustomersPage() {
     return counts
   }, [jobs])
 
-  const startCreate = () => {
+  const startCreate = useCallback(() => {
     setEditing(null)
     setOpen(true)
-  }
+  }, [])
 
   const startEdit = (c: Customer) => {
     setEditing(c)
     setOpen(true)
   }
+
+  useEffect(() => {
+    registerTourCustomersHandlers({ openCreateCustomer: startCreate })
+    return () => unregisterTourCustomersHandlers()
+  }, [startCreate])
 
   return (
     <PageContainer>
@@ -55,7 +61,7 @@ export function CustomersPage() {
         title="Customers"
         description="Keep contact details and service addresses in one place for faster job setup."
         action={
-          <Button type="button" onClick={startCreate}>
+          <Button type="button" data-onboarding="tour-add-customer" onClick={startCreate}>
             Add customer
           </Button>
         }

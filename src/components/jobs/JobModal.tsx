@@ -10,12 +10,16 @@ import { JobForm } from './JobForm'
 import type { PendingJobPhoto } from './CreateJobPhotosSection'
 import type { Job } from '../../types'
 
+const PHOTO_PARTIAL_FAIL_MESSAGE =
+  'Job created, but some photos failed to upload. You can retry from the job details page.'
+
 export function JobModal({
   open,
   onClose,
   jobId,
   initialDate,
   initialAssigneeId,
+  initialCustomerId,
   newJobTitle,
   newJobDescription,
 }: {
@@ -24,6 +28,8 @@ export function JobModal({
   jobId: string | null
   initialDate?: string
   initialAssigneeId?: string | null
+  /** When creating (no jobId), pre-select this customer (e.g. onboarding tour). */
+  initialCustomerId?: string | null
   /** When creating (no jobId), overrides default “New job” copy — e.g. calendar quick add. */
   newJobTitle?: string
   newJobDescription?: string
@@ -46,22 +52,32 @@ export function JobModal({
       return rest
     }
     const base = buildNewJob(customers, initialDate)
+    const fromCustomer = initialCustomerId ? customers.find((c) => c.id === initialCustomerId) : undefined
+    let merged =
+      fromCustomer != null
+        ? {
+            ...base,
+            customer_id: fromCustomer.id,
+            customer_name: fromCustomer.full_name,
+            address: fromCustomer.address,
+          }
+        : base
     if (initialAssigneeId) {
-      return {
-        ...base,
+      merged = {
+        ...merged,
         assignees: [initialAssigneeId],
         status: 'scheduled',
       }
     }
-    return base
-  }, [job, customers, initialDate, initialAssigneeId])
+    return merged
+  }, [job, customers, initialDate, initialAssigneeId, initialCustomerId])
 
-  const formKey = jobId ?? `new-${initialDate ?? 'x'}-${initialAssigneeId ?? 'na'}`
+  const formKey = jobId ?? `new-${initialDate ?? 'x'}-${initialAssigneeId ?? 'na'}-${initialCustomerId ?? 'nc'}`
 
   const scheduleDateLabel =
     !jobId && initialDate ? formatDisplayDate(initialDate) : undefined
 
-  const canAttachPhotosOnCreate = !jobId && user?.role === 'admin'
+  const showPendingJobPhotos = !jobId && user?.role === 'admin'
 
   const uploadPendingPhotos = async (createdJob: Job, pendingPhotos: PendingJobPhoto[]) => {
     if (pendingPhotos.length === 0) return true
@@ -83,13 +99,13 @@ export function JobModal({
             task_id: taskId,
             image_url: upload.imageUrl,
             storage_path: upload.storagePath,
-            label: 'reference',
+            label: photo.label,
             note: '',
             uploaded_by_id: user.id,
             uploaded_by: uploadedBy,
           })
         } catch (error) {
-          await deleteStoredJobPhoto(upload.storagePath).catch((cleanupError) =>
+          await deleteStoredJobPhoto(upload.storagePath).catch((cleanupError: unknown) =>
             console.error('Failed to clean up orphaned job photo', cleanupError),
           )
           throw error
@@ -118,7 +134,7 @@ export function JobModal({
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
             <p className="font-semibold">{saveWarning}</p>
             <p className="mt-1 leading-relaxed">
-              The job is available in Jobs and can still have photos added from job details.
+              The job is saved and listed under Jobs. Open it to add or retry photos anytime.
             </p>
           </div>
           <div className="flex justify-end">
@@ -128,41 +144,42 @@ export function JobModal({
           </div>
         </div>
       ) : (
-        <>
-      {!jobId && scheduleDateLabel ? (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200/80 bg-emerald-50/90 px-3.5 py-2.5 text-sm dark:border-emerald-800/60 dark:bg-emerald-950/40">
-          <span className="font-medium text-emerald-900 dark:text-emerald-200">Scheduled for</span>
-          <span className="font-semibold tabular-nums text-emerald-950 dark:text-white">
-            {scheduleDateLabel}
-          </span>
-        </div>
-      ) : null}
-      <JobForm
-        key={formKey}
-        customers={customers}
-        employees={employees}
-        initial={initial}
-        scheduleDateLabel={scheduleDateLabel}
-        submitLabel={jobId ? 'Save changes' : 'Create job'}
-        showCreatePhotos={canAttachPhotosOnCreate}
-        onCancel={onClose}
-        onSubmit={async (values, pendingPhotos) => {
-          if (jobId) {
-            await updateJob(jobId, values)
-            onClose()
-            return
-          }
+        <div className="min-w-0">
+          {!jobId && scheduleDateLabel ? (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200/80 bg-emerald-50/90 px-3.5 py-2.5 text-sm dark:border-emerald-800/60 dark:bg-emerald-950/40">
+              <span className="font-medium text-emerald-900 dark:text-emerald-200">Scheduled for</span>
+              <span className="font-semibold tabular-nums text-emerald-950 dark:text-white">
+                {scheduleDateLabel}
+              </span>
+            </div>
+          ) : null}
+          <JobForm
+            key={formKey}
+            customers={customers}
+            employees={employees}
+            initial={initial}
+            scheduleDateLabel={scheduleDateLabel}
+            submitLabel={jobId ? 'Save changes' : 'Create job'}
+            showPendingJobPhotos={showPendingJobPhotos}
+            checklistJobId={jobId ?? ''}
+            onCancel={onClose}
+            onSubmit={async (values, pendingPhotos) => {
+              if (jobId) {
+                await updateJob(jobId, values)
+                onClose()
+                return
+              }
 
-          const createdJob = await addJob(values)
-          const ok = await uploadPendingPhotos(createdJob, pendingPhotos)
-          if (!ok) {
-            setSaveWarning('Job saved, but some photos failed to upload.')
-            return
-          }
-          onClose()
-        }}
-      />
-        </>
+              const createdJob = await addJob(values)
+              const ok = await uploadPendingPhotos(createdJob, pendingPhotos)
+              if (!ok) {
+                setSaveWarning(PHOTO_PARTIAL_FAIL_MESSAGE)
+                return
+              }
+              onClose()
+            }}
+          />
+        </div>
       )}
     </Modal>
   )

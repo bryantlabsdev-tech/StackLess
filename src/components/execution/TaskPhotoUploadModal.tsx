@@ -21,6 +21,7 @@ export function TaskPhotoUploadModal({
   initialNote = '',
   mode = 'create',
   editingPhoto = null,
+  uploadContextError = null,
 }: {
   open: boolean
   onClose: () => void
@@ -35,10 +36,13 @@ export function TaskPhotoUploadModal({
   initialNote?: string
   mode?: 'create' | 'edit'
   editingPhoto?: TaskPhoto | null
+  /** When set, show this instead of the upload form (e.g. missing job/task id). */
+  uploadContextError?: string | null
 }) {
   const fileId = useId()
   const labelGroupId = useId()
   const isEdit = mode === 'edit' && editingPhoto != null
+  const contextBlocked = Boolean(uploadContextError?.trim())
 
   const [note, setNote] = useState(initialNote)
   const [photoLabel, setPhotoLabel] = useState<PhotoLabelId>(
@@ -73,6 +77,7 @@ export function TaskPhotoUploadModal({
   }
 
   const handleFile = (file: File | null) => {
+    if (contextBlocked) return
     setError(null)
     setMergedDataUrl(null)
     setFileName(null)
@@ -103,6 +108,7 @@ export function TaskPhotoUploadModal({
   }
 
   const handleSubmit = async () => {
+    if (contextBlocked) return
     const url = mergedDataUrl ?? rawDataUrl
     if (!url) {
       setError('Add a photo first.')
@@ -159,12 +165,25 @@ export function TaskPhotoUploadModal({
             <Button type="button" variant="secondary" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="button" onClick={handleSubmit} disabled={busy || !previewUrl}>
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={busy || !previewUrl || contextBlocked}
+            >
               {busy ? 'Saving…' : 'Save'}
             </Button>
           </>
         }
       >
+        {uploadContextError ? (
+          <div
+            className="rounded-2xl border border-amber-200 bg-amber-50/95 px-4 py-4 text-sm leading-relaxed text-amber-950 dark:border-amber-900/55 dark:bg-amber-950/40 dark:text-amber-100"
+            role="alert"
+          >
+            {uploadContextError}
+          </div>
+        ) : null}
+        {!uploadContextError ? (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-2">
             <span
@@ -280,6 +299,7 @@ export function TaskPhotoUploadModal({
             </p>
           ) : null}
         </div>
+        ) : null}
       </Modal>
     </>
   )

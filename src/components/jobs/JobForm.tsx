@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAppData } from '../../hooks/useAppData'
 import { CustomerFieldsForm } from '../customers/CustomerFieldsForm'
 import { emptyCustomerDraft } from '../../lib/customerDraft'
+import type { PhotoLabelId } from '../../lib/taskPhotoLabels'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
@@ -12,6 +13,7 @@ import {
   CreateJobPhotosSection,
   type PendingJobPhoto,
 } from './CreateJobPhotosSection'
+import { JobFormChecklistSection } from './JobFormChecklistSection'
 
 const STATUSES: JobStatus[] = [
   'unassigned',
@@ -43,7 +45,9 @@ export function JobForm({
   initial,
   scheduleDateLabel,
   submitLabel,
-  showCreatePhotos = false,
+  showPendingJobPhotos = false,
+  /** Real job id when editing; empty when creating (checklist rows still get stable ids). */
+  checklistJobId = '',
   onSubmit,
   onCancel,
 }: {
@@ -53,18 +57,21 @@ export function JobForm({
   /** Shown when opening “new job” from calendar with a pre-filled date. */
   scheduleDateLabel?: string
   submitLabel: string
-  showCreatePhotos?: boolean
+  /** New job (admin): local-only photos until Create job runs; no Supabase until after save. */
+  showPendingJobPhotos?: boolean
+  checklistJobId?: string
   onSubmit: (values: Omit<Job, 'id'>, pendingPhotos: PendingJobPhoto[]) => void | Promise<void>
   onCancel: () => void
 }) {
   const { addCustomer } = useAppData()
   const [values, setValues] = useState<Omit<Job, 'id'>>(() => initial)
   const [pendingPhotos, setPendingPhotos] = useState<PendingJobPhoto[]>([])
+  const latestPendingPhotos = useRef<PendingJobPhoto[]>([])
   const [customerSearch, setCustomerSearch] = useState('')
   const [newCustomerOpen, setNewCustomerOpen] = useState(false)
   const [newCustomerDraft, setNewCustomerDraft] = useState(emptyCustomerDraft)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const latestPendingPhotos = useRef<PendingJobPhoto[]>([])
+  const [formError, setFormError] = useState<string | null>(null)
   /** Until parent `customers` includes the new id, keep a snapshot so the customer select shows the right label. */
   const [pendingCustomer, setPendingCustomer] = useState<Customer | null>(null)
 
@@ -91,6 +98,10 @@ export function JobForm({
       if (photo) URL.revokeObjectURL(photo.previewUrl)
       return prev.filter((p) => p.id !== photoId)
     })
+  }
+
+  const changePendingLabel = (photoId: string, label: PhotoLabelId) => {
+    setPendingPhotos((prev) => prev.map((p) => (p.id === photoId ? { ...p, label } : p)))
   }
 
   const filteredCustomers = useMemo(() => {
@@ -175,16 +186,28 @@ export function JobForm({
     e.preventDefault()
     if (!values.title.trim()) return
     if (!values.customer_id) return
+    const checklistForSave = [...values.checklist]
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((c) => ({ ...c, title: c.title.trim() }))
+      .filter((c) => c.title.length > 0)
+      .map((c, i) => ({ ...c, order_index: i }))
+    if (checklistForSave.length === 0) {
+      setFormError(
+        'Add at least one checklist item. Crew checks these off on the job before completing the visit.',
+      )
+      return
+    }
+    setFormError(null)
     setIsSubmitting(true)
     try {
-      await onSubmit(values, pendingPhotos)
+      await onSubmit({ ...values, checklist: checklistForSave }, pendingPhotos)
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="min-w-0 space-y-6">
       <p className="rounded-[16px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs leading-relaxed text-slate-600 dark:border-[#1F2A36] dark:bg-[#151B23] dark:text-[#94A3B8]">
         {scheduleDateLabel ? (
           <>
@@ -205,6 +228,7 @@ export function JobForm({
         required
       />
 
+      <div data-onboarding="tour-job-form-core" className="space-y-6">
       <div className="rounded-[18px] border border-slate-200 bg-slate-50/50 p-4 dark:border-[#1F2A36] dark:bg-[#11161D]">
         <div className="flex flex-wrap items-start justify-between gap-2 sm:items-center">
           <div className="min-w-0 flex-1">
@@ -321,6 +345,15 @@ export function JobForm({
         </div>
       </div>
 
+      {showPendingJobPhotos ? (
+        <CreateJobPhotosSection
+          photos={pendingPhotos}
+          onAddPhotos={addPendingPhotos}
+          onRemovePhoto={removePendingPhoto}
+          onChangeLabel={changePendingLabel}
+        />
+      ) : null}
+
       <Input
         label="Service type"
         value={values.service_type}
@@ -365,7 +398,37 @@ export function JobForm({
           onChange={(e) => set({ end_time: e.target.value })}
         />
       </div>
-      <fieldset className="space-y-3 rounded-[18px] border border-slate-200 bg-slate-50/50 p-4 dark:border-[#1F2A36] dark:bg-[#11161D]">
+      <Select
+        label="Status"
+        value={values.status}
+        onChange={(e) => set({ status: e.target.value as JobStatus })}
+      >
+        {STATUSES.map((s) => (
+          <option key={s} value={s}>
+            {JOB_STATUS_LABELS[s]}
+          </option>
+        ))}
+      </Select>
+      <Textarea
+        label="Notes"
+        value={values.notes}
+        onChange={(e) => set({ notes: e.target.value })}
+        placeholder="Notes for the crew"
+      />
+      <JobFormChecklistSection
+        items={values.checklist}
+        contextJobId={checklistJobId}
+        onChange={(checklist) => {
+          setFormError(null)
+          set({ checklist })
+        }}
+      />
+      </div>
+
+      <fieldset
+        data-onboarding="tour-job-crew"
+        className="space-y-3 rounded-[18px] border border-slate-200 bg-slate-50/50 p-4 dark:border-[#1F2A36] dark:bg-[#11161D]"
+      >
         <legend className="px-1 text-sm font-semibold text-slate-800 dark:text-slate-200">Crew</legend>
         <p className="text-xs text-slate-500 dark:text-[#94A3B8]">
           Pick who should handle this job. Leave it unassigned if you still need to decide.
@@ -392,23 +455,6 @@ export function JobForm({
             ))}
         </div>
       </fieldset>
-      <Select
-        label="Status"
-        value={values.status}
-        onChange={(e) => set({ status: e.target.value as JobStatus })}
-      >
-        {STATUSES.map((s) => (
-          <option key={s} value={s}>
-            {JOB_STATUS_LABELS[s]}
-          </option>
-        ))}
-      </Select>
-      <Textarea
-        label="Notes"
-        value={values.notes}
-        onChange={(e) => set({ notes: e.target.value })}
-        placeholder="Notes for the crew"
-      />
       <label className="flex cursor-pointer items-start gap-3 rounded-[18px] border border-slate-200 bg-slate-50/70 p-4 text-sm shadow-sm dark:border-[#1F2A36] dark:bg-[#11161D]">
         <input
           type="checkbox"
@@ -425,12 +471,13 @@ export function JobForm({
           </span>
         </span>
       </label>
-      {showCreatePhotos ? (
-        <CreateJobPhotosSection
-          photos={pendingPhotos}
-          onAddPhotos={addPendingPhotos}
-          onRemovePhoto={removePendingPhoto}
-        />
+      {formError ? (
+        <p
+          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200"
+          role="alert"
+        >
+          {formError}
+        </p>
       ) : null}
       <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 dark:border-[#1F2A36] sm:flex-row sm:justify-end sm:pt-5">
         <Button type="button" variant="secondary" onClick={onCancel} disabled={isSubmitting}>

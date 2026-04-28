@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAppData } from '../hooks/useAppData'
 import { JobModal } from '../components/jobs/JobModal'
@@ -15,6 +15,7 @@ import { formatJobValue, optionalJobValue } from '../lib/jobValue'
 import { formatDisplayDate } from '../lib/format'
 import type { JobStatus } from '../types'
 import { JOB_STATUS_LABELS } from '../types'
+import { registerTourJobsHandlers, unregisterTourJobsHandlers } from '../onboarding/tourJobsHandlers'
 
 const secondaryLinkClass =
   'inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:-translate-y-px hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 dark:border-[#1F2A36] dark:bg-[#151B23] dark:text-slate-100 dark:hover:bg-[#1A2230] sm:flex-none'
@@ -44,6 +45,7 @@ export function JobsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [presetDate, setPresetDate] = useState<string | undefined>(undefined)
+  const [presetCustomerId, setPresetCustomerId] = useState<string | undefined>(undefined)
 
   const filtered = useMemo(() => {
     return jobs.filter((j) => {
@@ -64,17 +66,33 @@ export function JobsPage() {
     })
   }, [filtered])
 
-  const openNew = () => {
+  const closeJobModal = useCallback(() => {
+    setModalOpen(false)
+    setPresetCustomerId(undefined)
+  }, [])
+
+  const openNew = useCallback((opts?: { customerId?: string | null }) => {
     setEditingId(null)
     setPresetDate(undefined)
+    setPresetCustomerId(opts?.customerId ?? undefined)
     setModalOpen(true)
-  }
+  }, [])
 
-  const openEdit = (id: string) => {
+  const openEdit = useCallback((id: string) => {
     setEditingId(id)
     setPresetDate(undefined)
+    setPresetCustomerId(undefined)
     setModalOpen(true)
-  }
+  }, [])
+
+  useEffect(() => {
+    registerTourJobsHandlers({
+      openNewJob: openNew,
+      openEditJob: openEdit,
+      closeModal: closeJobModal,
+    })
+    return () => unregisterTourJobsHandlers()
+  }, [openNew, openEdit, closeJobModal])
 
   return (
     <PageContainer>
@@ -86,7 +104,12 @@ export function JobsPage() {
             <Link to="/calendar" className={secondaryLinkClass}>
               View calendar
             </Link>
-            <Button type="button" className="flex-1 sm:flex-none" onClick={openNew}>
+            <Button
+              type="button"
+              className="flex-1 sm:flex-none"
+              data-onboarding="tour-create-job"
+              onClick={() => openNew()}
+            >
               Add job
             </Button>
           </div>
@@ -154,7 +177,7 @@ export function JobsPage() {
           <EmptyState
             title="No jobs yet"
             detail="Create your first job to start organizing your business in one place"
-            action={<Button onClick={openNew}>+ Create Job</Button>}
+            action={<Button onClick={() => openNew()}>+ Create Job</Button>}
           />
         ) : sorted.length === 0 ? (
           <EmptyState title="No jobs match" detail="Adjust filters or clear them to see everything." />
@@ -218,9 +241,10 @@ export function JobsPage() {
 
       <JobModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={closeJobModal}
         jobId={editingId}
         initialDate={presetDate}
+        initialCustomerId={editingId ? null : presetCustomerId ?? null}
       />
     </PageContainer>
   )

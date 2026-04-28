@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button'
 import { createPortalSession } from '../lib/billing'
 import { formatTrialEnd } from '../lib/subscription'
 import { useAuth } from '../hooks/useAuth'
+import { useOnboarding } from '../context/onboardingContext'
 
 function SettingsCard({
   title,
@@ -44,6 +45,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 export function SettingsPage() {
   const { user, logout, refreshProfile, workspaceSubscriptionAccess } = useAuth()
+  const onboarding = useOnboarding()
   const navigate = useNavigate()
   const [loadingAction, setLoadingAction] = useState<'portal' | 'refresh' | 'signout' | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -168,6 +170,22 @@ export function SettingsPage() {
             <ThemeToggle />
           </div>
         </SettingsCard>
+
+        {user?.role === 'admin' && onboarding ? (
+          <SettingsCard
+            title="Guided tour"
+            description="Replay the short walkthrough of customers, jobs, crew assignment, and the crew mobile experience."
+          >
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full sm:w-auto"
+              onClick={() => onboarding.replayTour()}
+            >
+              Replay guided tour
+            </Button>
+          </SettingsCard>
+        ) : null}
       </div>
     </PageContainer>
   )

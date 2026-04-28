@@ -43,11 +43,11 @@ export function Modal({
         onClick={onClose}
       />
       <div
-        className={`modal-panel-enter relative z-10 flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem)] w-full min-w-0 flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 ring-1 ring-black/[0.04] dark:border-[#1F2A36] dark:bg-[#11161D] dark:shadow-black/50 dark:ring-white/[0.05] sm:max-h-[90vh] ${
+        className={`modal-panel-enter relative z-10 flex w-full min-w-0 max-h-[min(90vh,calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem))] flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 ring-1 ring-black/[0.04] dark:border-[#1F2A36] dark:bg-[#11161D] dark:shadow-black/50 dark:ring-white/[0.05] ${
           wide ? 'max-w-3xl' : 'max-w-lg'
         }`}
       >
-        <div className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 bg-white px-4 py-3 dark:border-[#1F2A36] dark:bg-[#11161D] sm:px-5 sm:py-4">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 bg-white px-4 py-3 dark:border-[#1F2A36] dark:bg-[#11161D] sm:px-5 sm:py-4">
           <div className="min-w-0 pr-2">
             <h2 id="modal-title" className="text-lg font-semibold tracking-[-0.03em] text-slate-950 dark:text-[#F8FAFC]">
               {title}
@@ -60,9 +60,11 @@ export function Modal({
             ✕
           </Button>
         </div>
-        <div className="scroll-momentum min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">{children}</div>
+        <div className="scroll-momentum min-h-0 min-w-0 flex-grow touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+          {children}
+        </div>
         {footer ? (
-          <div className="sticky bottom-0 z-10 flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-[#1F2A36] dark:bg-[#11161D] sm:flex-row sm:justify-end sm:px-5 sm:py-4">
+          <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-[#1F2A36] dark:bg-[#11161D] sm:flex-row sm:justify-end sm:px-5 sm:py-4">
             {footer}
           </div>
         ) : null}

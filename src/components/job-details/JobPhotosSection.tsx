@@ -52,14 +52,22 @@ export function JobPhotosSection({
   const openUpload = () => {
     if (!canManage) return
     void (async () => {
-      const task =
-        tasks[0] ??
-        (await addJobTask(job.id, {
-          title: 'Job photos',
-          description: 'Photos attached to this job.',
-        }))
-      uploadSessionSeq.current += 1
-      setUploadSession({ kind: 'create', taskId: task.id, key: uploadSessionSeq.current })
+      try {
+        const task =
+          tasks[0] ??
+          (await addJobTask(job.id, {
+            title: 'Job photos',
+            description: 'Photos attached to this job.',
+          }))
+        if (!task?.id?.trim()) {
+          console.error('JobPhotosSection: missing task id for photo upload')
+          return
+        }
+        uploadSessionSeq.current += 1
+        setUploadSession({ kind: 'create', taskId: task.id, key: uploadSessionSeq.current })
+      } catch {
+        // addJobTask surfaces errors via trackSync; avoid opening an empty upload dialog
+      }
     })()
   }
 
@@ -120,6 +128,11 @@ export function JobPhotosSection({
         mode={uploadSession?.kind === 'edit' ? 'edit' : 'create'}
         editingPhoto={uploadSession?.kind === 'edit' ? uploadSession.photo : null}
         initialNote={uploadSession?.kind === 'edit' ? uploadSession.photo.note : ''}
+        uploadContextError={
+          uploadSession?.kind === 'create' && !uploadSession.taskId.trim()
+            ? 'Photo upload is not ready yet. Close this dialog and tap Upload Photo again. If this keeps happening, refresh the page.'
+            : null
+        }
         onClose={() => setUploadSession(null)}
         onSubmit={async (input) => {
           if (!user || !canManage) {
