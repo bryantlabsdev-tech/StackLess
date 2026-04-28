@@ -12,5 +12,9 @@ export interface EmployeeInvite {
   accepted_by: string | null
   accepted_at: string | null
   expires_at: string | null
+  /** When the invite email was successfully sent via Resend (server-tracked). */
+  email_sent_at: string | null
+  /** Last email delivery failure message from the send-invite API. */
+  email_send_error: string | null
   created_at: string
 }

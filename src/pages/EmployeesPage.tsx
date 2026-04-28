@@ -20,8 +20,12 @@ import {
   type EmployeeTodayOverview,
   type TodayOverviewKind,
 } from '../lib/employeeTodayOverview'
+import { sendEmployeeInviteEmail } from '../lib/inviteEmail'
 import { formatISODate } from '../lib/format'
 import { initialsFromName } from '../lib/initials'
+import { useAuth } from '../hooks/useAuth'
+import type { FeedbackContextValue } from '../context/feedbackContext'
+import { useFeedback } from '../hooks/useFeedback'
 import type { Employee, EmployeeAccountStatus, EmployeeInvite } from '../types'
 
 const linkGhost =
@@ -185,6 +189,8 @@ function jobCountLine(o: EmployeeTodayOverview): string {
 type Row = { employee: Employee; overview: EmployeeTodayOverview }
 
 export function EmployeesPage() {
+  const { user } = useAuth()
+  const { notify } = useFeedback()
   const {
     employees,
     employeeInvites,
@@ -193,7 +199,9 @@ export function EmployeesPage() {
     addEmployee,
     updateEmployee,
     createEmployeeInvite,
+    refreshWorkspaceFromDb,
   } = useAppData()
+  const organizationId = user?.organization_id ?? null
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Employee | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
@@ -494,12 +502,15 @@ export function EmployeesPage() {
       {inviteEmployee ? (
         <EmployeeInviteModal
           employee={inviteEmployee}
+          organizationId={organizationId}
           latestInvite={
             employeeInvites
               .filter((invite) => invite.employee_id === inviteEmployee.id)
               .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0] ?? null
           }
           onCreateInvite={createEmployeeInvite}
+          onRefreshWorkspace={refreshWorkspaceFromDb}
+          notify={notify}
           onClose={() => setInviteEmployee(null)}
         />
       ) : null}
@@ -511,72 +522,148 @@ function inviteLinkFor(token: string) {
   return `${window.location.origin}${window.location.pathname}#/signup?invite=${encodeURIComponent(token)}`
 }
 
+function inviteEmailDeliveryLabel(invite: EmployeeInvite): 'Pending' | 'Sent' | 'Failed' {
+  if (invite.email_sent_at) return 'Sent'
+  if (invite.email_send_error) return 'Failed'
+  return 'Pending'
+}
+
+function inviteEmailDeliveryBadgeClass(label: 'Pending' | 'Sent' | 'Failed'): string {
+  switch (label) {
+    case 'Sent':
+      return 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700/55 dark:bg-emerald-950/45 dark:text-emerald-100'
+    case 'Failed':
+      return 'border-red-300 bg-red-50 text-red-900 dark:border-red-700/55 dark:bg-red-950/45 dark:text-red-100'
+    default:
+      return 'border-slate-200 bg-white text-slate-600 dark:border-slate-600 dark:bg-slate-900 dark:text-gray-300'
+  }
+}
+
 function EmployeeInviteModal({
   employee,
+  organizationId,
   latestInvite,
   onCreateInvite,
+  onRefreshWorkspace,
+  notify,
   onClose,
 }: {
   employee: Employee
+  organizationId: string | null
   latestInvite: EmployeeInvite | null
   onCreateInvite: (
     employeeId: string,
     input: { contact_email?: string; contact_phone?: string },
   ) => Promise<EmployeeInvite>
+  onRefreshWorkspace: () => Promise<void>
+  notify: FeedbackContextValue['notify']
   onClose: () => void
 }) {
   const [email, setEmail] = useState(employee.email)
   const [phone, setPhone] = useState(employee.phone)
-  const [invite, setInvite] = useState<EmployeeInvite | null>(latestInvite)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
+  const [copyBusy, setCopyBusy] = useState(false)
+  const [sending, setSending] = useState(false)
 
+  const invite = latestInvite
   const inviteLink = invite ? inviteLinkFor(invite.token) : null
   const canCreate = email.trim() !== '' || phone.trim() !== ''
+  const deliveryLabel = invite ? inviteEmailDeliveryLabel(invite) : null
 
-  async function createInvite() {
-    if (!canCreate) {
-      setError('Add an email or phone number before generating an invite.')
+  async function sendInviteEmail() {
+    if (!organizationId) {
+      setError('No organization is available for this session.')
+      return
+    }
+    if (!email.trim()) {
+      setError('Add an email address before sending an invite.')
       return
     }
     setError(null)
     setCopied(false)
-    setSubmitting(true)
+    setSending(true)
     try {
-      const created = await onCreateInvite(employee.id, {
-        contact_email: email,
-        contact_phone: phone,
+      const result = await sendEmployeeInviteEmail({
+        email: email.trim(),
+        employeeId: employee.id,
+        organizationId,
       })
-      setInvite(created)
+      await onRefreshWorkspace()
+      if (result.email_sent) {
+        notify({ tone: 'success', title: 'Invite sent' })
+      } else {
+        notify({
+          tone: 'error',
+          title: 'Invite email failed',
+          detail: result.error,
+        })
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to create invite.')
+      notify({
+        tone: 'error',
+        title: 'Could not send invite',
+        detail: err instanceof Error ? err.message : undefined,
+      })
     } finally {
-      setSubmitting(false)
+      setSending(false)
     }
   }
 
-  async function copyInviteLink() {
-    if (!inviteLink) return
-    await navigator.clipboard.writeText(inviteLink)
-    setCopied(true)
+  async function handleCopyLink() {
+    if (!canCreate) {
+      setError('Add an email or phone number before copying an invite link.')
+      return
+    }
+    setError(null)
+    setCopied(false)
+    setCopyBusy(true)
+    try {
+      let token = invite?.token
+      if (!token) {
+        const created = await onCreateInvite(employee.id, {
+          contact_email: email,
+          contact_phone: phone,
+        })
+        token = created.token
+      }
+      await navigator.clipboard.writeText(inviteLinkFor(token))
+      setCopied(true)
+      await onRefreshWorkspace()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to copy invite link.')
+    } finally {
+      setCopyBusy(false)
+    }
   }
 
   return (
     <Modal
       open
       title={`Invite ${employee.full_name}`}
-      description="Generate a crew signup link that connects this person to their employee record."
+      description="Send an email invite or copy the signup link so this crew member can link their account."
       onClose={onClose}
       footer={
-        <>
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <Button variant="secondary" onClick={onClose}>
             Close
           </Button>
-          <Button onClick={createInvite} disabled={submitting}>
-            {submitting ? 'Generating…' : 'Generate invite link'}
-          </Button>
-        </>
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            <Button
+              variant="secondary"
+              onClick={handleCopyLink}
+              disabled={copyBusy || sending}
+            >
+              {copied ? 'Copied' : copyBusy ? 'Preparing…' : 'Copy link'}
+            </Button>
+            <Button
+              onClick={sendInviteEmail}
+              disabled={sending || copyBusy || !email.trim() || !organizationId}
+            >
+              {sending ? 'Sending…' : 'Send Invite'}
+            </Button>
+          </div>
+        </div>
       }
     >
       <div className="space-y-4">
@@ -611,13 +698,21 @@ function EmployeeInviteModal({
                   {invite.status === 'accepted' ? 'Invite accepted' : 'Invite link ready'}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-gray-400">
-                  Send this link by email, text message, or any crew chat.
+                  You can still share the signup link manually by copying it below.
                 </p>
               </div>
-              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-slate-600 dark:border-slate-600 dark:bg-slate-900 dark:text-gray-300">
-                {invite.status}
-              </span>
+              {deliveryLabel ? (
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${inviteEmailDeliveryBadgeClass(deliveryLabel)}`}
+                >
+                  {deliveryLabel}
+                </span>
+              ) : null}
             </div>
+            <p className="mt-2 text-xs text-slate-500 dark:text-gray-400">
+              Acceptance status:{' '}
+              <span className="font-semibold text-slate-700 dark:text-gray-300">{invite.status}</span>
+            </p>
             {inviteLink ? (
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 <input
@@ -625,15 +720,12 @@ function EmployeeInviteModal({
                   value={inviteLink}
                   readOnly
                 />
-                <Button variant="secondary" onClick={copyInviteLink}>
-                  {copied ? 'Copied' : 'Copy link'}
-                </Button>
               </div>
             ) : null}
           </div>
         ) : (
           <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-gray-300">
-            No invite has been generated for this employee yet.
+            Send an invite or use Copy link to generate a signup URL for this employee.
           </p>
         )}
       </div>

@@ -62,6 +62,8 @@ export interface AppDataContextValue {
     input: Omit<EmployeeDaySchedule, 'id'> & { id?: string },
   ) => EmployeeDaySchedule
   deleteEmployeeDaySchedule: (id: string) => void
+  /** Reload workspace operational data from Supabase (includes invites after send-invite). */
+  refreshWorkspaceFromDb: () => Promise<void>
 }
 
 export const AppDataContext = createContext<AppDataContextValue | null>(null)

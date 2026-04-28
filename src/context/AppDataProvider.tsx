@@ -121,6 +121,8 @@ type DbEmployeeInvite = {
   accepted_by: string | null
   accepted_at: string | null
   expires_at: string | null
+  email_sent_at: string | null
+  email_send_error: string | null
   created_at: string
 }
 
@@ -261,6 +263,8 @@ async function loadOperationalData(organizationId: string) {
       accepted_by: invite.accepted_by,
       accepted_at: invite.accepted_at,
       expires_at: invite.expires_at,
+      email_sent_at: invite.email_sent_at ?? null,
+      email_send_error: invite.email_send_error ?? null,
       created_at: invite.created_at,
     }),
   )
@@ -818,6 +822,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         accepted_by: invite.accepted_by,
         accepted_at: invite.accepted_at,
         expires_at: invite.expires_at,
+        email_sent_at: invite.email_sent_at ?? null,
+        email_send_error: invite.email_send_error ?? null,
         created_at: invite.created_at,
       }
       setEmployeeInvites((prev) => [normalized, ...prev])
@@ -1372,6 +1378,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       updateEmployee,
       getEmployee,
       createEmployeeInvite,
+      refreshWorkspaceFromDb: refreshWorkspaceStateFromDb,
       getTasksForJob,
       addJobTask,
       updateJobTask,
@@ -1412,6 +1419,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       updateEmployee,
       getEmployee,
       createEmployeeInvite,
+      refreshWorkspaceStateFromDb,
       getTasksForJob,
       addJobTask,
       updateJobTask,

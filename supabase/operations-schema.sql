@@ -322,6 +322,8 @@ create table if not exists public.employee_invites (
   accepted_by uuid references auth.users(id) on delete set null,
   accepted_at timestamptz,
   expires_at timestamptz,
+  email_sent_at timestamptz,
+  email_send_error text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
